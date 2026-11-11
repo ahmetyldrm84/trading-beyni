@@ -1,0 +1,27 @@
+name: Bekçi
+
+# Bot herhangi bir sebeple durmuşsa yarım saat içinde yeniden başlatır.
+on:
+  schedule:
+    - cron: '13,43 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  kontrol:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Bot çalışmıyorsa başlat
+        run: |
+          n=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow bot.yml --limit 20 --json status --jq '[.[] | select(.status != "completed")] | length')
+          if [ "$n" = "0" ]; then
+            echo "Bot çalışmıyor, başlatılıyor."
+            gh workflow run bot.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.event.repository.default_branch }}"
+          else
+            echo "Bot çalışıyor."
+          fi

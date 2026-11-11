@@ -1,0 +1,68 @@
+name: Trading Beyni
+
+# Bot bu iş akışının içinde kesintisiz çalışır (Telegram'ı dinler, 30 dakikada bir tarar).
+# GitHub bir işi en fazla 6 saat çalıştırdığı için her tur ~5,5 saatte düzgünce kapanır ve sıradakini başlatır.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: trading-beyni
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      DURUM_SIFRESI: ${{ secrets.DURUM_SIFRESI }}
+      DATABASE_URL: file:./trading-beyni.db
+      MAX_CALISMA_DK: '320'
+      # İsteğe bağlı ayarlar: Settings → Secrets and variables → Actions → Variables
+      OTO_TARAMA_DK: ${{ vars.OTO_TARAMA_DK }}
+      GECE_YASAGI: ${{ vars.GECE_YASAGI }}
+      BEKLE_BILDIRIMI: ${{ vars.BEKLE_BILDIRIMI }}
+      OTO_MIN_GUVEN: ${{ vars.OTO_MIN_GUVEN }}
+      STOCK_AUTO: ${{ vars.STOCK_AUTO }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+    steps:
+      - name: Gizli anahtarlar tanımlı mı
+        run: |
+          eksik=""
+          [ -n "$TELEGRAM_BOT_TOKEN" ] || eksik="$eksik TELEGRAM_BOT_TOKEN"
+          [ -n "$ANTHROPIC_API_KEY" ] || eksik="$eksik ANTHROPIC_API_KEY"
+          [ -n "$DURUM_SIFRESI" ] || eksik="$eksik DURUM_SIFRESI"
+          if [ -n "$eksik" ]; then echo "::error::Eksik secret:$eksik (Settings → Secrets and variables → Actions)"; exit 1; fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Kurulum
+        run: npm ci --no-audit --no-fund && npm run build
+
+      - name: Hafızayı yükle
+        run: node --no-warnings scripts/durum.js yukle
+
+      - name: Bot
+        run: |
+          node --no-warnings scripts/durum.js nobet &
+          node --no-warnings dist/local-runner.js
+
+      - name: Hafızayı kaydet
+        if: always()
+        run: node --no-warnings scripts/durum.js kaydet
+
+      - name: Sıradaki turu başlat
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run bot.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
