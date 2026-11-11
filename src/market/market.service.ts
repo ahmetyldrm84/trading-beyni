@@ -248,17 +248,23 @@ export class MarketService {
     }
   }
 
-  async getTickers(): Promise<{ source: string; tickers: Ticker[]; errors: string[] }> {
+  private lastTickerSource: (typeof ORDER)[number] | null = null;
+
+  /** fresh=true önbelleği atlar (dakikalık pozisyon nöbeti için). Son çalışan kaynak önce denenir. */
+  async getTickers(fresh = false): Promise<{ source: string; tickers: Ticker[]; errors: string[] }> {
+    if (fresh) this.cache.delete('tickers');
     return this.cached('tickers', async () => {
       const errors: string[] = [];
-      for (const src of ORDER) {
+      const sira = this.lastTickerSource ? [this.lastTickerSource, ...ORDER.filter((x) => x !== this.lastTickerSource)] : ORDER;
+      for (const src of sira) {
         try {
           const all = (await this.tickersFrom(src)).filter(
             (t) => t.price > 0 && !STABLES.has(t.symbol) && !TRADFI.has(t.symbol) && /^[A-Z0-9]+$/.test(t.symbol),
           );
           if (all.length < 10) throw new Error(`only ${all.length} tickers`);
           all.sort((a, b) => b.quoteVolume - a.quoteVolume);
-          this.logger.log(`Tickers from ${src} (${all.length})`);
+          if (this.lastTickerSource !== src) this.logger.log(`Tickers from ${src} (${all.length})`);
+          this.lastTickerSource = src;
           return { source: src, tickers: all, errors };
         } catch (e) {
           const msg = `${src}: ${(e as Error).message}`;
