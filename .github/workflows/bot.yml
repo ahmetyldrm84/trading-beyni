@@ -28,6 +28,9 @@ jobs:
       GECE_YASAGI: ${{ vars.GECE_YASAGI }}
       BEKLE_BILDIRIMI: ${{ vars.BEKLE_BILDIRIMI }}
       OTO_MIN_GUVEN: ${{ vars.OTO_MIN_GUVEN }}
+      ACIL_UYARI: ${{ vars.ACIL_UYARI }}
+      ACIL_5DK: ${{ vars.ACIL_5DK }}
+      ACIL_15DK: ${{ vars.ACIL_15DK }}
       STOCK_AUTO: ${{ vars.STOCK_AUTO }}
       LLM_MODEL: ${{ vars.LLM_MODEL }}
     steps:
