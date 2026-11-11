@@ -54,6 +54,8 @@ Bot, deponun **Actions** sekmesindeki "Trading Beyni" iş akışının içinde k
 | `GECE_YASAGI` | `00:30-08:00` | Bu saatlerde (TR) otomatik tarama yok. Kapatmak için `kapali` |
 | `BEKLE_BILDIRIMI` | `acik` | Fırsat yokken tek satır "bekle" mesajı. Susturmak için `kapali` |
 | `OTO_MIN_GUVEN` | `6` | Otomatik kart eşiği (6-10) |
+| `ON_ELEME` | `acik` | Otomatik taramada önce ücretsiz kural kontrolü; aday yoksa model çağrılmaz. Her taramada modeli çağırmak için `kapali` |
+| `ON_ELEME_AZAMI_SAAT` | `4` | Bu kadar saattir model hiç bakmadıysa aday olmasa da bir kez bakar. `0` = hiç |
 | `ACIL_UYARI` | `acik` | Açık pozisyonda sert ters hareket uyarısı. Kapatmak için `kapali` |
 | `ACIL_5DK` / `ACIL_15DK` | `1.5` / `2.5` | Acil uyarı eşikleri (% aleyhe hareket) |
 | `STOCK_AUTO` | `kapali` | NASDAQ otomatik taraması |
@@ -138,4 +140,4 @@ Dikkat:
   Windows'ta: Ayarlar → Sistem → Güç → "Uyku" süresini **Hiçbir zaman** yap (prize takılıyken).
 - **Veri:** Binance Futures. Binance'e ulaşılamazsa sırayla Gate.io, Bybit, OKX, CoinGecko'ya geçer.
 - **Veritabanı:** Talimatlar ve sohbet geçmişi klasördeki `trading-beyni.db` dosyasında tutulur. Silersen hafıza sıfırlanır.
-- **Maliyet:** Her tarama bir Claude API çağrısıdır: 30 dakikalık nöbet günde ~33 çağrı, artı senin taramaların.
+- **Maliyet:** Otomatik taramada model yalnızca ön eleme bir aday bulduğunda (ya da 4 saattir hiç bakmadıysa) çağrılır; yatay piyasada günde birkaç çağrı. Senin "tara" mesajların her zaman modeli çağırır.
