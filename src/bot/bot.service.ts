@@ -470,6 +470,8 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
     return lines.length;
   }
 
+  private sonModelTaramasi = Date.now();
+
   // ===================== Auto scan (cron) =====================
   async autoScan(opts: AutoScanOptions = {}) {
     const owner = await this.scanner.getOwner();
@@ -541,7 +543,25 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
     if (owner.kill_switch || owner.balance < RULES.KILL_SWITCH_THRESHOLD) {
       result.card = 'KILL_SWITCH — kart gönderilmedi';
     } else if (!opts.skipLlm) {
-      const res = await this.scanner.scan({ trigger: 'AUTO', minConfidence: RULES.AUTO_CARD_MIN_CONFIDENCE });
+      // Ön eleme (ücretsiz): aday yoksa model çağrılmaz. ON_ELEME=kapali ile devre dışı.
+      // Güvenlik payı: ON_ELEME_AZAMI_SAAT (varsayılan 4) saattir model hiç bakmadıysa yine de bir kez bakar.
+      let hint: string | undefined;
+      if ((process.env.ON_ELEME || 'acik').toLowerCase() !== 'kapali') {
+        const azami = process.env.ON_ELEME_AZAMI_SAAT === '0' ? 0 : Number(process.env.ON_ELEME_AZAMI_SAAT) || 4;
+        const zorunlu = azami > 0 && Date.now() - this.sonModelTaramasi > azami * 3600_000;
+        const pre = await this.scanner.preScreen();
+        if (pre && !pre.candidates.length && !zorunlu) {
+          result.scanStatus = 'ELENDI';
+          result.card = null;
+          if (!opts.dryRun && chatId != null && (process.env.BEKLE_BILDIRIMI || 'acik').toLowerCase() !== 'kapali')
+            await this.tg.send(chatId, `⏳ <b>Bekle</b> · ${esc(pre.summary)}`).catch(() => undefined);
+          if (!opts.dryRun) await this.prune();
+          return result;
+        }
+        if (pre?.candidates.length) hint = pre.summary;
+      }
+      this.sonModelTaramasi = Date.now();
+      const res = await this.scanner.scan({ trigger: 'AUTO', minConfidence: RULES.AUTO_CARD_MIN_CONFIDENCE, hint });
       result.scanStatus = res.status;
       result.model = res.model;
       if (res.status === 'TRADE' && res.card) {
