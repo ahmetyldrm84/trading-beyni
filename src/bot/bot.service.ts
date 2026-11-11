@@ -725,7 +725,7 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
       '',
       '• /yardim → bu liste',
       '',
-      `🤖 Otomatik nöbet: kripto 30 dakikada bir (gece 00:30-08:00 hariç)${(process.env.STOCK_AUTO || '').toLowerCase() === 'acik' ? '; NASDAQ piyasa açıkken hafta içi saatlik' : ' (NASDAQ otomatik taraması kapalı, "hisse tara" ile elle)'}. Sert hareket alarmı + güven ≥${RULES.AUTO_CARD_MIN_CONFIDENCE} fırsatlarda hazır kart, aynı fırsat tekrar gönderilmez. Takipteki pozisyon TP/SL seviyesine gelince haber veririm.`,
+      `🤖 Otomatik nöbet: kripto 30 dakikada bir (gece 00:30-08:00 hariç)${(process.env.STOCK_AUTO || '').toLowerCase() === 'acik' ? '; NASDAQ piyasa açıkken hafta içi saatlik' : ' (NASDAQ otomatik taraması kapalı, "hisse tara" ile elle)'}. Sert hareket alarmı + güven ≥${RULES.AUTO_CARD_MIN_CONFIDENCE} fırsatlarda hazır kart, aynı fırsat tekrar gönderilmez. Takipteki pozisyonlara dakikada bir bakarım: TP/SL seviyesinde haber, aleyhe sert kırılımda 🚨 ACİL uyarısı.`,
       '💬 Bunlar dışında benimle serbestçe sohbet edebilirsin.',
     ].join('\n');
   }
