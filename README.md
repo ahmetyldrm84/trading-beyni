@@ -16,7 +16,8 @@ Binance USDⓈ-M Futures için işlem kartı verir. Karar modeli Claude Fable 5.
 ## İşlem defteri ve takip
 
 Borsadaki (Binance, Gate.io) **pozisyon ya da kapanan işlem ekran görüntüsünü** bota gönder:
-- Açık pozisyonsa deftere ekler ve takibe alır. Fiyat TP ya da SL seviyesine gelince haber verir (gece de).
+- Açık pozisyonsa deftere ekler ve takibe alır. Dakikada bir fiyatına bakar (gece de): TP ya da SL seviyesine gelince haber verir.
+- **Acil uyarı:** Pozisyonun aleyhine sert kırılım olursa (5 dakikada %1,5 ya da 15 dakikada %2,5; BTC ve ETH için %30 daha düşük), fiyat stopu aşıp pozisyon hâlâ açık görünüyorsa ya da teminatın yarısı eridiyse 🚨 ACİL mesajı atar. Bot borsada emir veremez; pozisyonu sen kapatırsın.
 - Kapanmış işlemse ekrandaki gerçekleşen kâr/zararı deftere yazar ve toplamı günceller. Aynı ekranı iki kez gönderirsen tekrar eklemez.
 - Fiyat grafiği gönderirsen eskisi gibi grafik analizi yapar.
 
@@ -53,6 +54,8 @@ Bot, deponun **Actions** sekmesindeki "Trading Beyni" iş akışının içinde k
 | `GECE_YASAGI` | `00:30-08:00` | Bu saatlerde (TR) otomatik tarama yok. Kapatmak için `kapali` |
 | `BEKLE_BILDIRIMI` | `acik` | Fırsat yokken tek satır "bekle" mesajı. Susturmak için `kapali` |
 | `OTO_MIN_GUVEN` | `6` | Otomatik kart eşiği (6-10) |
+| `ACIL_UYARI` | `acik` | Açık pozisyonda sert ters hareket uyarısı. Kapatmak için `kapali` |
+| `ACIL_5DK` / `ACIL_15DK` | `1.5` / `2.5` | Acil uyarı eşikleri (% aleyhe hareket) |
 | `STOCK_AUTO` | `kapali` | NASDAQ otomatik taraması |
 
 Ayar değiştirince yeni turda geçerli olur. Hemen geçsin istersen Actions → Trading Beyni → çalışan turu **Cancel**, sonra **Run workflow**.
