@@ -18,6 +18,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { MarketService } from './market/market.service';
 import { LlmService } from './llm/llm.service';
 import { ScanService } from './trading/scan.service';
+import { JournalService } from './trading/journal.service';
 import { TelegramService } from './telegram/telegram.service';
 import { BotService } from './bot/bot.service';
 import { StockMarketService } from './stocks/stock-market.service';
@@ -25,7 +26,7 @@ import { StockScanService } from './stocks/stock-scan.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule],
-  providers: [MarketService, LlmService, ScanService, TelegramService, BotService, StockMarketService, StockScanService],
+  providers: [MarketService, LlmService, ScanService, JournalService, TelegramService, BotService, StockMarketService, StockScanService],
 })
 class LocalModule {}
 
@@ -150,6 +151,8 @@ async function main() {
 
   const taramaDk = [15, 20, 30, 60].includes(Number(process.env.OTO_TARAMA_DK)) ? Number(process.env.OTO_TARAMA_DK) : 30;
   schedule('Kripto nöbeti', taramaDk, 0, async () => {
+    // Açık pozisyon takibi gece de çalışır (model çağrısı yok); yeni kart taraması gece yasağına uyar.
+    await bot.trackPositions().catch((e) => log.warn(`Takip hata: ${(e as Error).message}`));
     if (geceYasagi()) return;
     const r = await bot.autoScan({});
     log.log(`Kripto nöbeti: ${r.scanStatus ?? r.card ?? r.note ?? 'tamam'}${r.alerts?.length ? ` alarm=${r.alerts.length}` : ''}`);
