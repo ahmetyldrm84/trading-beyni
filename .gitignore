@@ -1,0 +1,18 @@
+node_modules/
+dist/
+node/
+coverage/
+logs/
+
+# Gizli bilgiler: asla depoya girmez
+.env
+.env.*
+!.env.example
+durum-sifresi.txt
+
+# Yerel veritabanı (GitHub'da şifreli hali "durum" dalında durur)
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.zip
