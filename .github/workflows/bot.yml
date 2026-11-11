@@ -28,6 +28,8 @@ jobs:
       GECE_YASAGI: ${{ vars.GECE_YASAGI }}
       BEKLE_BILDIRIMI: ${{ vars.BEKLE_BILDIRIMI }}
       OTO_MIN_GUVEN: ${{ vars.OTO_MIN_GUVEN }}
+      ON_ELEME: ${{ vars.ON_ELEME }}
+      ON_ELEME_AZAMI_SAAT: ${{ vars.ON_ELEME_AZAMI_SAAT }}
       ACIL_UYARI: ${{ vars.ACIL_UYARI }}
       ACIL_5DK: ${{ vars.ACIL_5DK }}
       ACIL_15DK: ${{ vars.ACIL_15DK }}
