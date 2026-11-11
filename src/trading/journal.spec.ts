@@ -1,4 +1,4 @@
-import { cleanPosition, levelHit, pnlAt, toNumber, totals } from './journal';
+import { adverseMove, cleanPosition, emergency, levelHit, pnlAt, toNumber, totals } from './journal';
 
 describe('işlem defteri', () => {
   it('sayı yazımlarını çözer', () => {
@@ -48,5 +48,45 @@ describe('işlem defteri', () => {
     const t = totals([10, -4, 6.5, null, 0]);
     expect(t).toMatchObject({ count: 5, wins: 2, losses: 1, flat: 1, unknown: 1, total: 12.5, winRate: 67, best: 10, worst: -4, avgWin: 8.25, avgLoss: -4 });
     expect(totals([])).toMatchObject({ count: 0, total: 0, winRate: null, best: null });
+  });
+
+  describe('acil durum', () => {
+    const now = 1_000_000_000;
+    const h = (...p: Array<[number, number]>) => p.map(([dkOnce, price]) => ({ t: now - dkOnce * 60_000, price }));
+    const long = { symbol: 'SOL', direction: 'LONG', entry: 100, leverage: 5, stopLoss: 95 };
+    const short = { symbol: 'SOL', direction: 'SHORT', entry: 100, leverage: 5, stopLoss: 105 };
+
+    it('aleyhe hareketi pencere içindeki tepe/dipten ölçer', () => {
+      expect(adverseMove('LONG', h([4, 100], [2, 102], [1, 101]), now, 5 * 60_000, 99.96)).toBeCloseTo(2, 1);
+      expect(adverseMove('SHORT', h([4, 100], [2, 98]), now, 5 * 60_000, 99.96)).toBeCloseTo(2, 1);
+      expect(adverseMove('LONG', h([20, 110]), now, 5 * 60_000, 100)).toBe(0); // pencere dışı
+    });
+
+    it('sakin piyasada ve lehe harekette susar', () => {
+      expect(emergency(long, 100.2, h([5, 100], [3, 100.1], [1, 100.3]), now)).toBeNull();
+      expect(emergency(long, 104, h([5, 100], [1, 103]), now)).toBeNull();
+      expect(emergency(short, 96, h([5, 100], [1, 97]), now)).toBeNull();
+    });
+
+    it('5 dakikada sert ters hareketi yakalar', () => {
+      expect(emergency(long, 98.3, h([4, 100], [1, 99.5]), now)?.kind).toBe('SERT');
+      expect(emergency(short, 101.7, h([4, 100], [1, 100.5]), now)?.kind).toBe('SERT');
+      expect(emergency(long, 99, h([4, 100]), now)).toBeNull(); // %1 yetmez
+    });
+
+    it('15 dakikaya yayılan kırılımı yakalar; BTC için eşik daha düşük', () => {
+      expect(emergency(long, 97.4, h([14, 100], [9, 99], [4, 98.2], [1, 97.8]), now)?.kind).toBe('SERT');
+      const btc = { symbol: 'BTC', direction: 'LONG', entry: 75000, leverage: 3, stopLoss: null };
+      expect(emergency(btc, 74200, h([4, 75000]), now)?.kind).toBe('SERT'); // %1,07 ≥ 1,05
+      expect(emergency({ ...btc, symbol: 'SOL' }, 74200, h([4, 75000]), now)).toBeNull();
+    });
+
+    it('stop aşıldıysa ve teminat eriyorsa önce onları söyler', () => {
+      expect(emergency(long, 94.5, h([1, 94.6]), now)?.kind).toBe('STOP');
+      expect(emergency(short, 105.5, h([1, 105.4]), now)?.kind).toBe('STOP');
+      const stopsuz = { symbol: 'SOL', direction: 'LONG', entry: 100, leverage: 10, stopLoss: null };
+      expect(emergency(stopsuz, 94.9, h([1, 95]), now)?.kind).toBe('MARJIN'); // %5,1 x 10 = %51
+      expect(emergency(stopsuz, 96, h([1, 96]), now)).toBeNull();
+    });
   });
 });

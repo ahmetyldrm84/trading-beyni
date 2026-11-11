@@ -129,3 +129,61 @@ export function totals(pnls: Array<number | null>): Totals {
 }
 
 export const fmtPnl = (n: number | null): string => (n === null ? '?' : `${n > 0 ? '+' : ''}${n.toFixed(2)} USDT`);
+
+// ---------- Acil durum nöbeti ----------
+export interface PricePoint {
+  t: number; // ms
+  price: number;
+}
+export interface EmergencyConfig {
+  move5: number; // 5 dakikada aleyhe % hareket
+  move15: number; // 15 dakikada aleyhe % hareket
+  marginLossPct: number; // teminatın yüzde kaçı eridiğinde
+}
+export const EMERGENCY_DEFAULTS: EmergencyConfig = { move5: 1.5, move15: 2.5, marginLossPct: 50 };
+
+export interface Emergency {
+  kind: 'SERT' | 'STOP' | 'MARJIN';
+  text: string;
+}
+
+/** Pencere içindeki en kötü referansa göre aleyhe hareket yüzdesi (LONG: tepeden düşüş, SHORT: dipten yükseliş). */
+export function adverseMove(direction: string, history: PricePoint[], now: number, windowMs: number, price: number): number {
+  const w = history.filter((h) => now - h.t <= windowMs).map((h) => h.price);
+  if (!w.length) return 0;
+  const ref = direction === 'SHORT' ? Math.min(...w) : Math.max(...w);
+  if (!ref) return 0;
+  return direction === 'SHORT' ? ((price - ref) / ref) * 100 : ((ref - price) / ref) * 100;
+}
+
+/**
+ * Açık pozisyon için acil durum var mı?
+ *  STOP   : fiyat stop seviyesinin ötesine geçmiş ama pozisyon hâlâ açık görünüyor
+ *  MARJIN : teminatın büyük kısmı erimiş (giriş ve kaldıraç biliniyorsa)
+ *  SERT   : kısa sürede pozisyonun aleyhine sert hareket
+ */
+export function emergency(
+  p: { symbol: string; direction: string; entry: number | null; leverage: number | null; stopLoss: number | null },
+  price: number,
+  history: PricePoint[],
+  now: number,
+  cfg: EmergencyConfig = EMERGENCY_DEFAULTS,
+): Emergency | null {
+  const short = p.direction === 'SHORT';
+  if (p.stopLoss) {
+    const asim = short ? ((price - p.stopLoss) / p.stopLoss) * 100 : ((p.stopLoss - price) / p.stopLoss) * 100;
+    if (asim >= 0.2) return { kind: 'STOP', text: `fiyat stop seviyesini %${asim.toFixed(2)} aştı, pozisyon hâlâ açık görünüyor` };
+  }
+  if (p.entry && p.leverage) {
+    const aleyhe = short ? ((price - p.entry) / p.entry) * 100 : ((p.entry - price) / p.entry) * 100;
+    const erime = aleyhe * p.leverage;
+    if (erime >= cfg.marginLossPct) return { kind: 'MARJIN', text: `teminatın yaklaşık %${Math.round(erime)}'i eridi (${p.leverage}x), likidasyon yaklaşıyor` };
+  }
+  // BTC ve ETH daha az oynak: eşik biraz düşük tutulur
+  const k = p.symbol === 'BTC' || p.symbol === 'ETH' ? 0.7 : 1;
+  const m5 = adverseMove(p.direction, history, now, 5 * 60_000 + 15_000, price);
+  if (m5 >= cfg.move5 * k) return { kind: 'SERT', text: `son 5 dakikada aleyhine %${m5.toFixed(2)} sert hareket` };
+  const m15 = adverseMove(p.direction, history, now, 15 * 60_000 + 15_000, price);
+  if (m15 >= cfg.move15 * k) return { kind: 'SERT', text: `son 15 dakikada aleyhine %${m15.toFixed(2)} sert hareket` };
+  return null;
+}

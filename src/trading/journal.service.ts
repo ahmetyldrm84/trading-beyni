@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { position } from '../prisma/prisma.service';
 import { LlmService } from '../llm/llm.service';
 import { MarketService } from '../market/market.service';
-import { CleanPosition, ShotPosition, cleanPosition, fmtPnl, levelHit, pnlAt, totals } from './journal';
+import { CleanPosition, EMERGENCY_DEFAULTS, PricePoint, ShotPosition, cleanPosition, emergency, fmtPnl, levelHit, pnlAt, totals } from './journal';
 import { normalizeCoin } from './rules';
 import { esc, fmtPrice } from './render';
 
@@ -252,23 +252,84 @@ export class JournalService {
     return out.join('\n');
   }
 
-  /** Açık pozisyonlarda fiyat TP/SL seviyesine geldiyse bir kez haber verir. LLM kullanmaz. */
+  private readonly gecmis = new Map<string, PricePoint[]>();
+  private readonly sonAcil = new Map<string, number>();
+
+  private flags(o: position): string[] {
+    return (o.alerted || '').split(',').filter(Boolean);
+  }
+
+  /**
+   * Dakikalık pozisyon nöbeti (model çağrısı yok). Açık pozisyon yoksa hiçbir şey yapmaz.
+   *  - Fiyat TP/SL seviyesine geldiyse bir kez haber verir.
+   *  - Aleyhe sert kırılım, aşılmış stop ya da eriyen teminatta ACİL uyarısı gönderir.
+   */
   async track(): Promise<string[]> {
-    const acik = (await this.open()).filter((o) => o.stop_loss || o.take_profit);
-    if (!acik.length) return [];
-    const px = await this.prices();
+    const acik = await this.open();
+    if (!acik.length) {
+      this.gecmis.clear();
+      return [];
+    }
+    let px: Map<string, number>;
+    try {
+      const { tickers } = await this.market.getTickers(true);
+      px = new Map(tickers.map((t) => [t.symbol, t.price]));
+    } catch {
+      return [];
+    }
+    const now = Date.now();
+    const cfg = {
+      move5: Number(process.env.ACIL_5DK) || EMERGENCY_DEFAULTS.move5,
+      move15: Number(process.env.ACIL_15DK) || EMERGENCY_DEFAULTS.move15,
+      marginLossPct: Number(process.env.ACIL_TEMINAT) || EMERGENCY_DEFAULTS.marginLossPct,
+    };
+    const acilAcik = (process.env.ACIL_UYARI || 'acik').toLowerCase() !== 'kapali';
     const out: string[] = [];
     for (const o of acik) {
       const fiyat = px.get(o.symbol);
       if (!fiyat) continue;
+      const h = (this.gecmis.get(o.symbol) || []).filter((x) => now - x.t <= 16 * 60_000);
+      const bayrak = this.flags(o);
+      const anlik = pnlAt({ direction: o.direction, entry: o.entry, size: o.size }, fiyat);
+
+      const acil = acilAcik ? emergency({ symbol: o.symbol, direction: o.direction, entry: o.entry, leverage: o.leverage, stopLoss: o.stop_loss }, fiyat, h, now, cfg) : null;
+      const anahtar = `${o.id}:${acil?.kind}`;
+      const kalici = acil && acil.kind !== 'SERT'; // STOP ve MARJIN pozisyon başına bir kez
+      if (acil && !(kalici && bayrak.includes(acil.kind)) && now - (this.sonAcil.get(anahtar) || 0) > 30 * 60_000) {
+        this.sonAcil.set(anahtar, now);
+        if (kalici) await this.prisma.position.update({ where: { id: o.id }, data: { alerted: [...bayrak, acil.kind, 'SL'].filter((v, i, a) => a.indexOf(v) === i).join(',') } });
+        out.push(
+          [
+            `🚨🚨 <b>ACİL — #${o.id} ${esc(o.symbol)} ${o.direction}</b>`,
+            `Fiyat ${fmtPrice(fiyat)}: ${esc(acil.text)}.${anlik !== null ? ` Anlık: <b>${fmtPnl(anlik)}</b>` : ''}`,
+            o.stop_loss
+              ? `Stop ${fmtPrice(o.stop_loss)}. Borsada stop emrin duruyor mu hemen kontrol et; durmuyorsa <b>pozisyonu kapat</b>.`
+              : `<b>Bu pozisyonda stop görünmüyor. Pozisyonu kapat</b> ya da hemen stop koy.`,
+            `Kapattıysan ekran görüntüsünü gönder ya da <code>/kapat ${o.id} ${anlik ?? 0}</code> yaz.`,
+          ].join('\n'),
+        );
+        continue;
+      }
+
       const hit = levelHit({ direction: o.direction, stopLoss: o.stop_loss, takeProfit: o.take_profit }, fiyat);
-      if (!hit || o.alerted === hit) continue;
-      await this.prisma.position.update({ where: { id: o.id }, data: { alerted: hit } });
-      const tahmini = pnlAt({ direction: o.direction, entry: o.entry, size: o.size }, hit === 'TP' ? o.take_profit : o.stop_loss);
-      out.push(
-        `${hit === 'TP' ? '🎯' : '🛑'} <b>#${o.id} ${esc(o.symbol)} ${o.direction}</b>: fiyat ${fmtPrice(fiyat)}, ${hit === 'TP' ? 'TP' : 'SL'} seviyesine (${fmtPrice((hit === 'TP' ? o.take_profit : o.stop_loss)!)}) geldi${tahmini !== null ? `, tahmini ${fmtPnl(tahmini)}` : ''}.\nBorsada kapandıysa kapanış ekran görüntüsünü gönder ya da <code>/kapat ${o.id} ${tahmini ?? 0}</code> yaz.`,
-      );
+      if (hit && !bayrak.includes(hit)) {
+        await this.prisma.position.update({ where: { id: o.id }, data: { alerted: [...bayrak, hit].join(',') } });
+        const tahmini = pnlAt({ direction: o.direction, entry: o.entry, size: o.size }, hit === 'TP' ? o.take_profit : o.stop_loss);
+        out.push(
+          `${hit === 'TP' ? '🎯' : '🛑'} <b>#${o.id} ${esc(o.symbol)} ${o.direction}</b>: fiyat ${fmtPrice(fiyat)}, ${hit} seviyesine (${fmtPrice((hit === 'TP' ? o.take_profit : o.stop_loss)!)}) geldi${tahmini !== null ? `, tahmini ${fmtPnl(tahmini)}` : ''}.\nBorsada kapandıysa kapanış ekran görüntüsünü gönder ya da <code>/kapat ${o.id} ${tahmini ?? 0}</code> yaz.`,
+        );
+      }
     }
+    // Fiyat geçmişi: açık pozisyonu olan coinler için son 16 dakika
+    const semboller = new Set(acik.map((o) => o.symbol));
+    for (const sym of semboller) {
+      const fiyat = px.get(sym);
+      if (!fiyat) continue;
+      const h = (this.gecmis.get(sym) || []).filter((x) => now - x.t <= 16 * 60_000 && x.t !== now);
+      h.push({ t: now, price: fiyat });
+      this.gecmis.set(sym, h);
+    }
+    for (const sym of [...this.gecmis.keys()]) if (!semboller.has(sym)) this.gecmis.delete(sym);
     return out;
   }
 }
