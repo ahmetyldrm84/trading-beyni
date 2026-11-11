@@ -133,7 +133,7 @@ function schedule(name: string, every: number, offset: number, job: () => Promis
     if (!stopping) setTimeout(tick, msUntilNext(every, offset));
   };
   setTimeout(tick, msUntilNext(every, offset));
-  log.log(`${name}: ${every} dakikada bir`);
+  log.log(`${name}: ${every === 1 ? 'dakikada bir' : `${every} dakikada bir`}`);
 }
 
 async function main() {
@@ -151,11 +151,14 @@ async function main() {
 
   const taramaDk = [15, 20, 30, 60].includes(Number(process.env.OTO_TARAMA_DK)) ? Number(process.env.OTO_TARAMA_DK) : 30;
   schedule('Kripto nöbeti', taramaDk, 0, async () => {
-    // Açık pozisyon takibi gece de çalışır (model çağrısı yok); yeni kart taraması gece yasağına uyar.
-    await bot.trackPositions().catch((e) => log.warn(`Takip hata: ${(e as Error).message}`));
     if (geceYasagi()) return;
     const r = await bot.autoScan({});
     log.log(`Kripto nöbeti: ${r.scanStatus ?? r.card ?? r.note ?? 'tamam'}${r.alerts?.length ? ` alarm=${r.alerts.length}` : ''}`);
+  });
+  // Açık pozisyon nöbeti: dakikada bir, gece dahil. Model çağrısı yok; açık pozisyon yoksa ağ isteği de yok.
+  schedule('Pozisyon nöbeti', 1, 0, async () => {
+    const n = await bot.trackPositions();
+    if (n) log.log(`Pozisyon nöbeti: ${n} uyarı`);
   });
   if ((process.env.STOCK_AUTO || 'kapali').toLowerCase() === 'acik') {
     schedule('NASDAQ nöbeti', 60, 45, async () => {
