@@ -6,12 +6,15 @@ import { LlmMessage, LlmService } from '../llm/llm.service';
 import { RULES, UserConstraints, computeLimits, EffectiveLimits, normalizeCoin } from './rules';
 import { LlmDecision, TradeCard, validateDecision } from './validation';
 import { renderCard, renderKillSwitch, renderNoTrade } from './render';
+import { PreCandidate, preScreen, quietSummary } from './prescreen';
 
 export interface ScanRequest {
   trigger: 'MANUAL' | 'AUTO' | 'PHOTO';
   userQuery?: string;
   imageDataUrl?: string;
   minConfidence?: number;
+  /** Ön elemenin bulduğu adaylar (modele bilgi olarak verilir). */
+  hint?: string;
 }
 
 export interface ScanResult {
@@ -85,6 +88,28 @@ SADECE şu yapıda ham JSON döndür (markdown yok):
     return JSON.stringify(compact);
   }
 
+  /**
+   * Ön eleme: model çağırmadan aday var mı bakar. Veri alınamazsa null döner (o zaman model çağrılır).
+   * Aday yoksa tarama kaydına "ELENDI" olarak işlenir.
+   */
+  async preScreen(): Promise<{ candidates: PreCandidate[]; summary: string } | null> {
+    const t0 = Date.now();
+    try {
+      const snapshot = await this.market.getSnapshot();
+      if (snapshot.features.length < 3) return null;
+      const candidates = preScreen(snapshot.features);
+      const summary = candidates.length ? candidates.map((c) => `${c.symbol} ${c.direction} (${c.why})`).join('; ') : quietSummary(snapshot.features);
+      if (!candidates.length) {
+        await this.prisma.owner.update({ where: { id: 1 }, data: { last_scan_at: new Date() } });
+        await this.log('AUTO', snapshot.source, null, 'ELENDI', summary.slice(0, 500), null, t0);
+      }
+      return { candidates, summary };
+    } catch (e) {
+      this.logger.warn(`Pre-screen failed: ${(e as Error).message}`);
+      return null;
+    }
+  }
+
   async scan(req: ScanRequest): Promise<ScanResult> {
     const t0 = Date.now();
     const owner = await this.getOwner();
@@ -117,6 +142,7 @@ SADECE şu yapıda ham JSON döndür (markdown yok):
         req.trigger === 'AUTO'
           ? `GÖREV: Otomatik periyodik tarama (zamanlamayı sistem yönetir; saat ya da gece yasağını gerekçe yapma). Güven ≥${RULES.AUTO_CARD_MIN_CONFIDENCE} olan EN İYİ TEK işlemi ver, yoksa NO_TRADE. NO_TRADE ise reasoning alanına tek cümlelik kısa gerekçe yaz.`
           : `GÖREV: 50 coin + piyasa bağlamını tara, EN İYİ TEK işlemi ver ya da NO_TRADE.`,
+        req.hint ? `Kural tabanlı ön elemenin işaret ettiği adaylar (bağlayıcı değil, kendi değerlendirmeni yap): ${req.hint}` : '',
         req.userQuery ? `Kullanıcının mesajı: "${req.userQuery}" (belirli coin soruyorsa onu değerlendir).` : '',
         req.imageDataUrl
           ? 'Kullanıcı bir grafik ekran görüntüsü gönderdi: görseldeki coin/zaman dilimi/seviyeleri oku, canlı veriyle birleştir. Canlı fiyat görseldekinden farklıysa canlı fiyatı esas al.'
