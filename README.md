@@ -13,6 +13,22 @@ Binance USDⓈ-M Futures için işlem kartı verir. Karar modeli Claude Fable 5.
 - Bakiye 100 USDT altına inerse KILL SWITCH: yeni kart yok.
 - Emin değilse "Şu an işlem yok" der.
 
+## İşlem defteri ve takip
+
+Borsadaki (Binance, Gate.io) **pozisyon ya da kapanan işlem ekran görüntüsünü** bota gönder:
+- Açık pozisyonsa deftere ekler ve takibe alır. Fiyat TP ya da SL seviyesine gelince haber verir (gece de).
+- Kapanmış işlemse ekrandaki gerçekleşen kâr/zararı deftere yazar ve toplamı günceller. Aynı ekranı iki kez gönderirsen tekrar eklemez.
+- Fiyat grafiği gönderirsen eskisi gibi grafik analizi yapar.
+
+| Komut | Ne yapar |
+|---|---|
+| `/islemler` | Açık pozisyonlar (anlık kâr/zararla), son kapananlar, toplam |
+| `/karzarar` | Toplam, bugün, son 7 gün, isabet oranı, ortalama kâr ve zarar |
+| `/kapat 3 12.5` ya da `/kapat BTC -4.2` | İşlemi elle kapatır (sayı = kâr/zarar, USDT) |
+| `/islem_sil 3` | Yanlış okunan kaydı siler |
+
+Rakamlar ekran görüntüsünden okunur; yanlış okunan olursa `/islem_sil` ile silip `/kapat` ile düzelt. Defter, `/bakiye` değerini kendiliğinden değiştirmez.
+
 ## GitHub'da çalıştırma (bilgisayar kapalıyken de açık)
 
 Bot, deponun **Actions** sekmesindeki "Trading Beyni" iş akışının içinde kesintisiz çalışır. Her tur yaklaşık 5,5 saat sürer, kapanırken sıradakini başlatır. "Bekçi" iş akışı yarım saatte bir bakar, bot durmuşsa yeniden başlatır.
