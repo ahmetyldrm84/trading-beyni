@@ -408,7 +408,7 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
         ...history.map((h) => ({ role: h.role === 'assistant' ? ('assistant' as const) : ('user' as const), content: h.content })),
         { role: 'user', content: text },
       ],
-      { json: true, maxTokens: 1200 },
+      { json: true, maxTokens: 3000 },
     );
     const out = LlmService.parseJson<any>(res.content);
     const intent = String(out.intent || 'chat');
@@ -587,7 +587,7 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
         if (!opts.dryRun && chatId != null && (process.env.BEKLE_BILDIRIMI || 'acik').toLowerCase() !== 'kapali') {
           const neden =
             res.status === 'ERROR'
-              ? 'tarama hatası, birazdan tekrar denenecek'
+              ? `tarama hatası (${(/hata: ([^\n]*)/.exec(res.text)?.[1] || 'bilinmiyor').slice(0, 140)}), birazdan tekrar denenecek`
               : String(res.raw?.reasoning || res.raw?.market_comment || 'net kurulum yok').replace(/\s+/g, ' ').slice(0, 220);
           await this.tg.send(chatId, `⏳ <b>Bekle</b> · ${esc(neden)}`).catch(() => undefined);
         }
