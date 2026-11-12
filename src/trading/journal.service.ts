@@ -44,9 +44,9 @@ export class JournalService {
             ],
           },
         ],
-        { json: true, maxTokens: 900 },
+        { json: true, maxTokens: 3000 },
       );
-      const out = LlmService.parseJson<{ kind?: string; positions?: ShotPosition[] }>(res.content);
+      const out = LlmService.parseJson<{ kind?: string; positions?: ShotPosition[] }>(res.content, res.truncated);
       if (String(out.kind || '').toUpperCase() !== 'POSITIONS' || !Array.isArray(out.positions)) return null;
       return out.positions.map(cleanPosition).filter((p): p is CleanPosition => !!p);
     } catch (e) {

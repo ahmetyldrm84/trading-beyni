@@ -71,6 +71,8 @@ ${instructions.length ? instructions.map((t, i) => `${i + 1}. ${t}`).join('\n') 
 Analiz: trend (EMA20/50), RSI, momentum, 24s aralık konumu, hacim, funding, BTC yönü ve Fear&Greed. Likit (top hacimli) coinleri tercih et. SL'yi yapısal seviyeye (son swing / ATR) koy.
 Tüm metin alanları Türkçe, enerjik ama disiplinli; kısa.
 
+Uzun uzun düşünme ve ön açıklama yazma: kararını ver, doğrudan JSON'u yaz. Metin alanları kısa olsun.
+
 SADECE şu yapıda ham JSON döndür (markdown yok):
 {"decision":"TRADE veya NO_TRADE","symbol":"SOL","direction":"LONG veya SHORT","leverage":5,"margin_usdt":30,"entry":0,"stop_loss":0,"take_profit":0,"confidence":7 (1-10, yarım puan olabilir: 6.5),"reasoning":"2-4 cümle gerekçe","no_trade_reason":"NO_TRADE ise kısa sebep, yoksa boş","adds_to_existing_position":false,"market_comment":"1-2 cümle genel piyasa","image_assessment":"görsel varsa 1-3 cümle grafik yorumu, yoksa boş"}`;
   }
@@ -161,10 +163,10 @@ SADECE şu yapıda ham JSON döndür (markdown yok):
           { role: 'system', content: this.systemPrompt(owner.balance, limits, ins.map((i) => i.text)) },
           { role: 'user', content: userContent },
         ],
-        { json: true, maxTokens: 1500 },
+        { json: true, maxTokens: 6000 },
       );
       model = res.model;
-      const raw = LlmService.parseJson<LlmDecision>(res.content);
+      const raw = LlmService.parseJson<LlmDecision>(res.content, res.truncated);
 
       // live price lookup for entry sanity check
       let livePrice: number | null = null;
