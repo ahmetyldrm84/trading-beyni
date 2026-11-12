@@ -36,7 +36,7 @@ export class LlmService {
   async chat(
     messages: LlmMessage[],
     opts: { json?: boolean; maxTokens?: number } = {},
-  ): Promise<{ content: string; model: string }> {
+  ): Promise<{ content: string; model: string; truncated: boolean }> {
     const provider = this.provider;
     let lastErr = '';
     for (const model of this.models) {
@@ -44,13 +44,14 @@ export class LlmService {
       const timer = setTimeout(() => ctrl.abort(), 120_000);
       try {
         const t0 = Date.now();
-        const content =
+        const out =
           provider === 'anthropic'
             ? await this.anthropic(model, messages, opts, ctrl.signal)
-            : await this.abacus(model, messages, opts, ctrl.signal);
-        if (!content) throw new Error('boş model cevabı');
-        this.logger.log(`LLM ok provider=${provider} model=${model} ${Date.now() - t0}ms`);
-        return { content, model };
+            : { text: await this.abacus(model, messages, opts, ctrl.signal), stop: '', usage: '' };
+        const truncated = out.stop === 'max_tokens';
+        if (!out.text && !truncated) throw new Error('boş model cevabı');
+        this.logger.log(`LLM ok provider=${provider} model=${model} ${Date.now() - t0}ms${out.usage ? ` ${out.usage}` : ''}${truncated ? ' KESİLDİ(max_tokens)' : ''}`);
+        return { content: out.text, model, truncated };
       } catch (e) {
         lastErr = `${model}: ${(e as Error).message}`;
         this.logger.warn(`LLM call failed -> ${lastErr}`);
@@ -68,7 +69,7 @@ export class LlmService {
     messages: LlmMessage[],
     opts: { json?: boolean; maxTokens?: number },
     signal: AbortSignal,
-  ): Promise<string> {
+  ): Promise<{ text: string; stop: string; usage: string }> {
     const system = messages
       .filter((m) => m.role === 'system')
       .map((m) => (typeof m.content === 'string' ? m.content : m.content.map((p) => ('text' in p ? p.text : '')).join('\n')))
@@ -101,10 +102,16 @@ export class LlmService {
     const text = await r.text();
     if (!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0, 200)}`);
     const data = JSON.parse(text);
-    return (data?.content ?? [])
-      .filter((b: any) => b.type === 'text')
-      .map((b: any) => b.text)
-      .join('');
+    const u = data?.usage || {};
+    return {
+      text: (data?.content ?? [])
+        .filter((b: any) => b.type === 'text')
+        .map((b: any) => b.text)
+        .join(''),
+      stop: String(data?.stop_reason || ''),
+      // Kullanım: maliyeti kayıtlardan izleyebilmek için (yalnızca sayılar)
+      usage: `girdi=${u.input_tokens ?? '?'} çıktı=${u.output_tokens ?? '?'}`,
+    };
   }
 
   private async abacus(
@@ -130,12 +137,14 @@ export class LlmService {
     return JSON.parse(text)?.choices?.[0]?.message?.content ?? '';
   }
 
-  static parseJson<T = any>(s: string): T {
+  /** truncated=true ise cevap uzunluk sınırında kesilmiştir; yarım JSON'u çözmeye çalışmaz, açık hata verir. */
+  static parseJson<T = any>(s: string, truncated = false): T {
+    if (truncated) throw new Error('model cevabı uzunluk sınırında kesildi');
     try {
       return JSON.parse(s) as T;
     } catch {
       const m = s.match(/\{[\s\S]*\}/);
-      if (!m) throw new Error('LLM JSON parse edilemedi');
+      if (!m) throw new Error(`model JSON yerine başka bir şey döndürdü (${s.length} karakter)`);
       return JSON.parse(m[0]) as T;
     }
   }
