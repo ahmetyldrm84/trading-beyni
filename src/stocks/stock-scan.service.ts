@@ -141,7 +141,7 @@ SADECE şu yapıda ham JSON döndür (markdown yok):
           { role: 'system', content: this.systemPrompt(owner.stock_budget, limits, ins.map((i) => i.text)) },
           { role: 'user', content },
         ],
-        { json: true, maxTokens: 1500 },
+        { json: true, maxTokens: 6000 },
       );
       model = res.model;
       const raw = LlmService.parseJson<StockDecision>(res.content);
