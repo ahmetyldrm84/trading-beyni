@@ -15,6 +15,8 @@ export interface ScanRequest {
   minConfidence?: number;
   /** Ön elemenin bulduğu adaylar (modele bilgi olarak verilir). */
   hint?: string;
+  /** Bu tarama için coin sayısı ("tara 100"). Verilmezse varsayılan. */
+  coinCount?: number;
 }
 
 export interface ScanResult {
@@ -125,7 +127,7 @@ SADECE şu yapıda ham JSON döndür (markdown yok):
       const ins = await this.getActiveInstructions();
       const limits = computeLimits(ins.map((i) => (i.constraints || {}) as UserConstraints));
       const mentioned = this.extractCoins(req.userQuery || '');
-      snapshot = await this.market.getSnapshot(mentioned);
+      snapshot = await this.market.getSnapshot(mentioned, req.coinCount);
 
       const recent = await this.prisma.sent_signal.findMany({
         where: { kind: 'TRADE', market: 'CRYPTO', created_at: { gte: new Date(Date.now() - 24 * 3600_000) } },
