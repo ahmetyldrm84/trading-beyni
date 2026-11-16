@@ -83,8 +83,8 @@ SADECE şu yapıda ham JSON döndür (markdown yok):
       zaman: s.fetchedAt,
       fear_greed: s.fearGreed,
       majors: s.majors.map((m) => ({ s: m.symbol, p: m.price, ch24: +m.change24h.toFixed(2) })),
-      top50_hacim: s.top50.map((t) => [t.symbol, t.price, t.change24h, Math.round(t.quoteVolume / 1e6) + 'M', t.funding ?? null]),
-      top50_format: '[coin, fiyat, 24s%, 24s hacim USDT, funding]',
+      en_hacimli_coinler: s.top50.map((t) => [t.symbol, t.price, t.change24h, Math.round(t.quoteVolume / 1e6) + 'M', t.funding ?? null]),
+      coin_format: '[coin, fiyat, 24s%, 24s hacim USDT, funding]',
       aday_coin_1s_teknik: s.features,
     };
     return JSON.stringify(compact);
@@ -133,6 +133,7 @@ SADECE şu yapıda ham JSON döndür (markdown yok):
         take: 10,
       });
       const acik = await this.prisma.position.findMany({ where: { status: 'OPEN' } });
+      const s50 = snapshot.top50.length;
       const userParts: string[] = [
         `CANLI PİYASA VERİSİ (json):\n${this.marketBlock(snapshot)}`,
         recent.length
@@ -143,7 +144,7 @@ SADECE şu yapıda ham JSON döndür (markdown yok):
           : '',
         req.trigger === 'AUTO'
           ? `GÖREV: Otomatik periyodik tarama (zamanlamayı sistem yönetir; saat ya da gece yasağını gerekçe yapma). Güven ≥${RULES.AUTO_CARD_MIN_CONFIDENCE} olan EN İYİ TEK işlemi ver, yoksa NO_TRADE. NO_TRADE ise reasoning alanına tek cümlelik kısa gerekçe yaz.`
-          : `GÖREV: 50 coin + piyasa bağlamını tara, EN İYİ TEK işlemi ver ya da NO_TRADE.`,
+          : `GÖREV: ${s50} coin + piyasa bağlamını tara, EN İYİ TEK işlemi ver ya da NO_TRADE.`,
         req.hint ? `Kural tabanlı ön elemenin işaret ettiği adaylar (bağlayıcı değil, kendi değerlendirmeni yap): ${req.hint}` : '',
         req.userQuery ? `Kullanıcının mesajı: "${req.userQuery}" (belirli coin soruyorsa onu değerlendir).` : '',
         req.imageDataUrl
