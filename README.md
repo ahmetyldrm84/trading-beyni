@@ -54,6 +54,7 @@ Bot, deponun **Actions** sekmesindeki "Trading Beyni" iş akışının içinde k
 | `GECE_YASAGI` | `00:30-08:00` | Bu saatlerde (TR) otomatik tarama yok. Kapatmak için `kapali` |
 | `BEKLE_BILDIRIMI` | `acik` | Fırsat yokken tek satır "bekle" mesajı. Susturmak için `kapali` |
 | `OTO_MIN_GUVEN` | `6` | Otomatik kart eşiği (6-10) |
+| `TARAMA_COIN_SAYISI` | `100` | Hacme göre ilk kaç coin taranır (20-200) |
 | `ON_ELEME` | `acik` | Otomatik taramada önce ücretsiz kural kontrolü; aday yoksa model çağrılmaz. Her taramada modeli çağırmak için `kapali` |
 | `ON_ELEME_AZAMI_SAAT` | `4` | Bu kadar saattir model hiç bakmadıysa aday olmasa da bir kez bakar. `0` = hiç |
 | `ACIL_UYARI` | `acik` | Açık pozisyonda sert ters hareket uyarısı. Kapatmak için `kapali` |
@@ -107,7 +108,7 @@ Sonra **/bakiye 200** yaz.
 ## Kullanım
 | Yaz | Ne olur |
 |---|---|
-| `tara`, `var mı?`, `SOL girilir mi?` | Top 50 coin taranır, tek işlem kartı ya da "Şu an işlem yok" |
+| `tara`, `var mı?`, `SOL girilir mi?` | Hacme göre ilk 100 coin taranır, tek işlem kartı ya da "Şu an işlem yok" |
 | 🖼 Binance grafik ekran görüntüsü | Görsel + canlı veriyle analiz |
 | `bundan sonra kaldıracı 5x geçme` | Kalıcı talimat olarak kaydedilir, her kararda kodla uygulanır |
 | `/talimatlar`, `/talimat_sil 3` | Talimatları gör / sil |
