@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService, stripHtml } from '../telegram/telegram.service';
 import { ScanService, ScanResult } from '../trading/scan.service';
 import { LlmService } from '../llm/llm.service';
-import { MarketService } from '../market/market.service';
+import { MarketService, SCAN_COIN_COUNT } from '../market/market.service';
 import { JournalService } from '../trading/journal.service';
 import { RULES, UserConstraints, computeLimits } from '../trading/rules';
 import { esc, fmtPrice } from '../trading/render';
@@ -199,7 +199,7 @@ export class BotService {
       const res = await this.scanner.scan({ trigger: 'MANUAL', userQuery: query });
       return this.deliverScan(chatId, res, 'MANUAL');
     }
-    await this.tg.send(chatId, '🔍 Top 50 coin + piyasa bağlamı taranıyor... Disiplin modunda, sadece temiz kurulum! ⚡');
+    await this.tg.send(chatId, `🔍 Top ${SCAN_COIN_COUNT} coin + piyasa bağlamı taranıyor... Disiplin modunda, sadece temiz kurulum! ⚡`);
     await this.tg.typing(chatId);
     const res = await this.scanner.scan({ trigger: 'MANUAL', userQuery: query });
     await this.deliverScan(chatId, res, 'MANUAL');
