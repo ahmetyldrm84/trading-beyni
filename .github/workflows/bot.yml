@@ -58,16 +58,21 @@ jobs:
         run: node --no-warnings scripts/durum.js yukle
 
       - name: Bot
+        id: bot
         run: |
           node --no-warnings scripts/durum.js nobet &
+          NOBET=$!
           node --no-warnings dist/local-runner.js
+          kill "$NOBET" 2>/dev/null || true
 
+      # Kayıt başarısız olsa bile zincir kopmasın: bot en fazla son 10 dakikanın hafızasını kaybeder.
       - name: Hafızayı kaydet
         if: always()
+        continue-on-error: true
         run: node --no-warnings scripts/durum.js kaydet
 
       - name: Sıradaki turu başlat
-        if: success()
+        if: ${{ !cancelled() && steps.bot.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run bot.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"

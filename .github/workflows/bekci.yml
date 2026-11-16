@@ -18,10 +18,13 @@ jobs:
     steps:
       - name: Bot çalışmıyorsa başlat
         run: |
-          n=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow bot.yml --limit 20 --json status --jq '[.[] | select(.status != "completed")] | length')
-          if [ "$n" = "0" ]; then
-            echo "Bot çalışmıyor, başlatılıyor."
-            gh workflow run bot.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.event.repository.default_branch }}"
-          else
+          durum=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/bot.yml/runs?per_page=10" --jq '[.workflow_runs[].status] | join(",")' || echo "okunamadi")
+          echo "Son turların durumu: $durum"
+          # Yalnızca gerçekten süren ya da sırada bekleyen bir tur varsa dokunma; emin değilsek başlat
+          # (aynı anda iki tur çalışamaz: fazlası sırada bekler).
+          if echo "$durum" | grep -Eq 'in_progress|queued|pending|waiting|requested'; then
             echo "Bot çalışıyor."
+          else
+            echo "Bot çalışmıyor, başlatılıyor."
+            gh workflow run bot.yml --repo "$GITHUB_REPOSITORY" --ref main
           fi
