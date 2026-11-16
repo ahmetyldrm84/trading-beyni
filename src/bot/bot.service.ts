@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService, stripHtml } from '../telegram/telegram.service';
 import { ScanService, ScanResult } from '../trading/scan.service';
 import { LlmService } from '../llm/llm.service';
-import { MarketService, SCAN_COIN_COUNT } from '../market/market.service';
+import { MarketService, SCAN_COIN_COUNT, clampCoinCount } from '../market/market.service';
 import { JournalService } from '../trading/journal.service';
 import { RULES, UserConstraints, computeLimits } from '../trading/rules';
 import { esc, fmtPrice } from '../trading/render';
@@ -16,7 +16,7 @@ const STOCK_WORD_RE = /(^|[^a-zçğıöşü])(hisse\w*|nasdaq|borsa|stock\w*|qqq
 const STOCK_ASK_RE = /tara|al[ıi]n[ıi]r|girilir|var\s*m[ıi]|ne\s*dersin|f[ıi]rsat|[oö]ner|analiz|al[ıi]ms?\b|girel[ıi]m/i;
 const STOCK_BALANCE_RE = /hisse\s*(?:b[üu]t[çc]e(?:m|si)?|bakiye(?:m|si)?)\s*(?:[sş]u\s*an|art[ıi]k|oldu|:|=)?\s*([0-9]+(?:[.,][0-9]+)?)/i;
 
-const SCAN_RE = /^\/?tara\b|var\s*m[ıi]\s*\??$|girilir\s*mi|i[sş]lem\s*var\s*m[ıi]|f[ıi]rsat\s*var|^\/?scan\b/i;
+const SCAN_RE = /^\/?tara\b|coin\s*tara\b|var\s*m[ıi]\s*\??$|girilir\s*mi|i[sş]lem\s*var\s*m[ıi]|f[ıi]rsat\s*var|^\/?scan\b/i;
 const JOURNAL_PNL_RE = /k[aâ]r\s*[\/-]?\s*zarar|\bpnl\b|ne\s*kadar\s*kazand[ıi]m/i;
 const JOURNAL_LIST_RE = /^(a[çc][ıi]k\s*)?(i[sş]lemler(im)?|pozisyonlar(ım|im)?)\s*\??$|takip\s*listesi|i[sş]lem\s*defteri/i;
 const BALANCE_RE = /bakiye(?:m|im)?\s*(?:[sş]u\s*an|art[ıi]k|oldu|:|=)?\s*([0-9]+(?:[.,][0-9]+)?)\s*(?:usdt|\$)?/i;
@@ -132,7 +132,7 @@ export class BotService {
         case 'tara':
         case 'scan':
           await this.saveMsg('user', text);
-          return this.doScan(chatId, arg || undefined);
+          return this.doScan(chatId, arg ? `tara ${arg}` : undefined);
         case 'bakiye':
           if (arg) return this.setBalance(chatId, arg);
           return this.reply(chatId, `💼 Takip edilen bakiye: <b>${(await this.scanner.getOwner()).balance.toFixed(2)} USDT</b>\nGüncellemek için: <code>/bakiye 185</code>`, false);
@@ -194,14 +194,19 @@ export class BotService {
 
   // ===================== Scan =====================
   private async doScan(chatId: bigint, query?: string) {
+    // "tara 100", "/tara 100", "100 coin tara": yalnızca bu tarama için coin sayısı
+    const m = (query || '').match(/(?:^|\s)(\d{2,3})\s*(?:coin)?(?:\s|$)/i);
+    const istenen = m && /tara|scan|coin/i.test(query || '') ? Number(m[1]) : NaN;
+    const coinCount = Number.isFinite(istenen) ? clampCoinCount(istenen) : undefined;
+    if (coinCount) query = (query || '').replace(m![0], ' ').trim() || undefined;
     const o = await this.scanner.getOwner();
     if (o.kill_switch || o.balance < RULES.KILL_SWITCH_THRESHOLD) {
       const res = await this.scanner.scan({ trigger: 'MANUAL', userQuery: query });
       return this.deliverScan(chatId, res, 'MANUAL');
     }
-    await this.tg.send(chatId, `🔍 Top ${SCAN_COIN_COUNT} coin + piyasa bağlamı taranıyor... Disiplin modunda, sadece temiz kurulum! ⚡`);
+    await this.tg.send(chatId, `🔍 Top ${coinCount ?? SCAN_COIN_COUNT} coin + piyasa bağlamı taranıyor... Disiplin modunda, sadece temiz kurulum! ⚡`);
     await this.tg.typing(chatId);
-    const res = await this.scanner.scan({ trigger: 'MANUAL', userQuery: query });
+    const res = await this.scanner.scan({ trigger: 'MANUAL', userQuery: query, coinCount });
     await this.deliverScan(chatId, res, 'MANUAL');
   }
 
@@ -727,6 +732,7 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
     return [
       '📖 <b>KOMUTLAR</b>',
       '• <b>tara</b> / /tara / "var mı?" / "SOL girilir mi?" → anlık tarama: 1 işlem kartı ya da "Şu an işlem yok"',
+      '• <b>tara 100</b> → o tarama için hacme göre ilk 100 coin (20-200 arası sayı yazabilirsin; normalde 50)',
       '• 🖼 Grafik ekran görüntüsü gönder → canlı veriyle birlikte analiz',
       '• 🖼 Borsadaki pozisyon / kapanan işlem ekran görüntüsü → işlem defterine eklenir, takibe alınır',
       '• /islemler → açık pozisyonlar ve son kapananlar • /karzarar → toplam kâr/zarar',
