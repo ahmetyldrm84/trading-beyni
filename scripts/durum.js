@@ -142,7 +142,19 @@ function kaydet() {
   const tree = git(['mktree'], { input: `100644 blob ${blob}\t${DOSYA}\n` }).toString().trim();
   const commit = git(['commit-tree', tree, '-m', 'hafıza'], { env: kimlik }).toString().trim();
   // Tek commit'lik dal: geçmiş birikmez, depo şişmez.
-  git(['push', '--quiet', '--force', 'origin', `${commit}:refs/heads/${DAL}`]);
+  // Ağ ya da eşzamanlı yazma yüzünden itme başarısız olabilir: birkaç kez dene.
+  let sonHata = null;
+  for (let i = 0; i < 4; i++) {
+    try {
+      git(['push', '--quiet', '--force', 'origin', `${commit}:refs/heads/${DAL}`]);
+      sonHata = null;
+      break;
+    } catch (e) {
+      sonHata = e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 4000 * (i + 1));
+    }
+  }
+  if (sonHata) throw new Error(`hafıza depoya yazılamadı: ${String(sonHata.stderr || sonHata.message).split('\n')[0].slice(0, 200)}`);
   fs.writeFileSync(OZET, yeni);
   console.log('Hafıza kaydedildi.');
 }
