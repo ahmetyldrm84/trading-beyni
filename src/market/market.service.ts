@@ -48,6 +48,8 @@ type Source = 'Binance Futures' | 'Gate.io Futures' | 'Bybit Linear' | 'OKX Swap
 const ORDER: Source[] = ['Binance Futures', 'Gate.io Futures', 'Bybit Linear', 'OKX Swap', 'CoinGecko'];
 const KLINE_SOURCES: Source[] = ['Binance Futures', 'Gate.io Futures', 'Bybit Linear', 'OKX Swap'];
 const CACHE_MS = 60_000;
+/** Taranan coin sayısı (hacme göre ilk N). TARAMA_COIN_SAYISI ile ayarlanır: 20-200, varsayılan 100. */
+export const SCAN_COIN_COUNT = Math.min(200, Math.max(20, Math.round(Number(process.env.TARAMA_COIN_SAYISI) || 100)));
 // Non-crypto (tradfi) perps that some venues list — safety net in addition to venue metadata
 const TRADFI = new Set(['XAU', 'XAG', 'XAUT', 'PAXG', 'XPT', 'XPD', 'XCU', 'XAL', 'CL', 'BZ', 'NG', 'SPX', 'NDX', 'TSLA', 'NVDA', 'AAPL', 'MSTR', 'COIN', 'HOOD', 'SOXL', 'QQQ', 'SPY', 'EURUSD', 'GBPUSD', 'USDJPY', 'IAU', 'SLV']);
 const STABLES = new Set(['USDC', 'FDUSD', 'TUSD', 'BUSD', 'DAI', 'USDE', 'USDP', 'USD1', 'XUSD']);
@@ -394,7 +396,7 @@ export class MarketService {
   /** Full snapshot for the decision model. `extra` = additional coins to include klines for. */
   async getSnapshot(extra: string[] = []): Promise<MarketSnapshot> {
     const [{ source, tickers, errors }, fearGreed] = await Promise.all([this.getTickers(), this.getFearGreed()]);
-    const top50 = tickers.slice(0, 50).map((t) => ({
+    const top50 = tickers.slice(0, SCAN_COIN_COUNT).map((t) => ({
       symbol: t.symbol,
       price: +t.price.toPrecision(6),
       change24h: +t.change24h.toFixed(2),
@@ -410,9 +412,9 @@ export class MarketService {
     const movers = [...top50]
       .filter((t) => !['BTC', 'ETH', 'SOL'].includes(t.symbol))
       .sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h))
-      .slice(0, 7)
+      .slice(0, SCAN_COIN_COUNT > 50 ? 10 : 7)
       .map((t) => t.symbol);
-    const cands = Array.from(new Set(['BTC', 'ETH', 'SOL', ...extra.map((e) => e.toUpperCase()).filter((e) => bySym.has(e)), ...movers])).slice(0, 12);
+    const cands = Array.from(new Set(['BTC', 'ETH', 'SOL', ...extra.map((e) => e.toUpperCase()).filter((e) => bySym.has(e)), ...movers])).slice(0, SCAN_COIN_COUNT > 50 ? 15 : 12);
     let klineSource: string | null = null;
     const results = await Promise.all(
       cands.map(async (s) => {
