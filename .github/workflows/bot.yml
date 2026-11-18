@@ -28,6 +28,7 @@ jobs:
       GECE_YASAGI: ${{ vars.GECE_YASAGI }}
       BEKLE_BILDIRIMI: ${{ vars.BEKLE_BILDIRIMI }}
       OTO_MIN_GUVEN: ${{ vars.OTO_MIN_GUVEN }}
+      AZAMI_KAYIP_YUZDE: ${{ vars.AZAMI_KAYIP_YUZDE }}
       TARAMA_COIN_SAYISI: ${{ vars.TARAMA_COIN_SAYISI }}
       ON_ELEME: ${{ vars.ON_ELEME }}
       ON_ELEME_AZAMI_SAAT: ${{ vars.ON_ELEME_AZAMI_SAAT }}
