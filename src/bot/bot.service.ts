@@ -310,7 +310,7 @@ export class BotService {
       `Yeni limitler → max margin: ${((v * RULES.MAX_MARGIN_PCT) / 100).toFixed(1)} USDT • işlem başı max kayıp: ${((v * RULES.MAX_LOSS_PCT) / 100).toFixed(1)} USDT`,
     ];
     if (v < RULES.KILL_SWITCH_THRESHOLD) {
-      lines.push('', '🛑 <b>KILL SWITCH DEVREYE GİRDİ.</b> Bakiye 100 USDT altında — yeni işlem kartı yok. Nefes al, sermayeyi koru. 🫁');
+      lines.push('', `🛑 <b>KILL SWITCH DEVREYE GİRDİ.</b> Bakiye ${RULES.KILL_SWITCH_THRESHOLD} USDT altında — yeni işlem kartı yok. Nefes al, sermayeyi koru. 🫁`);
     } else if (kill) {
       lines.push('', '🔒 Kill switch hâlâ aktif. Hazırsan /killswitch_reset ile açabilirsin.');
     } else if (diff > 0) {
@@ -720,7 +720,7 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
       '🚀 <b>TRADING BEYNİ AKTİF!</b>',
       '',
       `Artık senin kişisel Binance futures analistinim. Başlangıç bakiyesi: <b>${balance.toFixed(2)} USDT</b>.`,
-      'Cesur ama disiplinli oynayacağız: her işlemde SL+TP, sadece ISOLATED, martingale YOK, bakiye 100 altına inerse kill switch. 🔒',
+      `Cesur ama disiplinli oynayacağız: her işlemde SL+TP, sadece ISOLATED, martingale YOK, bakiye ${RULES.KILL_SWITCH_THRESHOLD} altına inerse kill switch. 🔒`,
       '',
       '⚠️ Ben sadece <b>öneri</b> veririm — borsada hiçbir emir açmam. Son karar ve sorumluluk senin.',
       '',
@@ -742,7 +742,7 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
       '• /talimatlar → kalıcı talimatları listele',
       '• /talimat &lt;metin&gt; veya "bundan sonra 5x geçme" → kalıcı talimat ekle',
       '• /talimat_sil &lt;id&gt; → talimat sil',
-      '• /killswitch_reset → kill switch’i aç (sadece bakiye ≥100)',
+      `• /killswitch_reset → kill switch’i aç (sadece bakiye ≥${RULES.KILL_SWITCH_THRESHOLD})`,
       '',
       '🏦 <b>NASDAQ HİSSE</b>',
       '• <b>hisse tara</b> / /hisse / "NVDA alınır mı?" / "AAPL girilir mi?" → 1 hisse kartı (giriş, SL, TP1/TP2, çıkış planı, adet) ya da "işlem yok"',
