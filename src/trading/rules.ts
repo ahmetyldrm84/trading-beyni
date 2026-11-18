@@ -1,14 +1,17 @@
 // Otomatik taramanın kart eşiği: OTO_MIN_GUVEN ile ayarlanır, temel eşiğin (6) altına inemez.
 const otoMinGuven = Math.min(10, Math.max(6, Number(process.env.OTO_MIN_GUVEN) || 6));
 
+// İşlem başına stop'taki azami kayıp (bakiyenin yüzdesi). AZAMI_KAYIP_YUZDE ile ayarlanır: 0,5-10, varsayılan 3.
+const azamiKayip = Math.min(10, Math.max(0.5, Number(process.env.AZAMI_KAYIP_YUZDE) || 3));
+
 // IMMUTABLE RULES — user instructions can only TIGHTEN these, never loosen.
 export const RULES = {
-  DEFAULT_BALANCE: 200,
+  DEFAULT_BALANCE: 1000,
   KILL_SWITCH_THRESHOLD: 100,
   MIN_LEVERAGE: 1,
   MAX_LEVERAGE: 10,
   MAX_MARGIN_PCT: 50, // % of balance
-  MAX_LOSS_PCT: 10, // max loss at SL as % of balance
+  MAX_LOSS_PCT: azamiKayip, // max loss at SL as % of balance
   MIN_CONFIDENCE: 6, // below => "Şu an işlem yok"
   AUTO_CARD_MIN_CONFIDENCE: otoMinGuven, // proactive cards from automatic scan
   MIN_RR: 1.0, // TP distance / SL distance
