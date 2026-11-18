@@ -10,7 +10,7 @@ import { RULES, UserConstraints, computeLimits } from '../trading/rules';
 import { esc, fmtPrice } from '../trading/render';
 import { StockScanService, StockScanResult } from '../stocks/stock-scan.service';
 import { StockMarketService, etNow } from '../stocks/stock-market.service';
-import { STOCK_RULES, fmtUsd, stockKillActive } from '../stocks/stock-rules';
+import { STOCK_RULES, fmtUsd, stockKillActive, stockMaxLossPct } from '../stocks/stock-rules';
 
 const STOCK_WORD_RE = /(^|[^a-zçğıöşü])(hisse\w*|nasdaq|borsa|stock\w*|qqq|ndx)(?![a-zçğıöşü])/i;
 const STOCK_ASK_RE = /tara|al[ıi]n[ıi]r|girilir|var\s*m[ıi]|ne\s*dersin|f[ıi]rsat|[oö]ner|analiz|al[ıi]ms?\b|girel[ıi]m/i;
@@ -351,7 +351,7 @@ export class BotService {
       `🔍 Son kripto tarama: ${fmtDate(lastScan?.created_at)}${lastScan ? ` (${lastScan.trigger} → ${lastScan.result}${lastScan.data_source ? `, ${lastScan.data_source}` : ''})` : ''}`,
       '',
       '🏦 <b>NASDAQ HİSSE MODÜLÜ</b>',
-      `💵 İşlem başı bütçe: <b>${fmtUsd(o.stock_budget)}</b> • kaldıraç yok • sadece LONG • SL kaybı ≤%${Math.min(STOCK_RULES.MAX_LOSS_PCT, L.maxLossPct)} • R/Ö ≥1:${STOCK_RULES.MIN_RR}`,
+      `💵 İşlem başı bütçe: <b>${fmtUsd(o.stock_budget)}</b> • kaldıraç yok • sadece LONG • SL kaybı ≤%${stockMaxLossPct(L.maxLossPct)} • R/Ö ≥1:${STOCK_RULES.MIN_RR}`,
       `🛑 Hisse kill switch: ${stockKillActive(o.stock_budget, o.stock_kill_switch) ? '<b>AKTİF</b>' : 'kapalı ✅'}`,
       `🔍 Son hisse tarama: ${fmtDate(lastStock?.created_at)}${lastStock ? ` (${lastStock.trigger} → ${lastStock.result}${lastStock.data_source ? `, ${lastStock.data_source}` : ''})` : ''}`,
     ]
@@ -394,7 +394,7 @@ export class BotService {
 
     const system = `Sen "Trading Beyni"sin: kullanıcının kişisel Telegram trading asistanı. İki modülün var: (1) Binance USDⓈ-M kripto futures (kullanıcı işlemleri Binance'te elle açar), (2) NASDAQ-100 hisse (spot, kaldıraçsız, sadece LONG, işlem başı ${o.stock_budget.toFixed(0)} USD, SL kaybı ≤%${STOCK_RULES.MAX_LOSS_PCT}, R/Ö ≥1:${STOCK_RULES.MIN_RR}). Her zaman TÜRKÇE, enerjik, motive edici, cesur ama disiplinli konuş; kuralları asla çiğneme. Emir göndermezsin, sadece öneri verirsin.
 Kripto bakiye: ${o.balance.toFixed(2)} USDT. Kill switch: ${o.kill_switch ? 'AKTİF' : 'kapalı'}. ${marketLine}
-Değişmez kurallar: her işlemde SL+TP, SL asla genişletilmez, ISOLATED marj, martingale/zarardaki pozisyona ekleme yasak, kaldıraç 1-10x, margin ≤ bakiyenin %50'si, işlem başı SL kaybı ≤ %10, bakiye <100 USDT ise kill switch.
+Değişmez kurallar: her işlemde SL+TP, SL asla genişletilmez, ISOLATED marj, martingale/zarardaki pozisyona ekleme yasak, kaldıraç 1-10x, margin ≤ bakiyenin %50'si, işlem başı SL kaybı ≤ %${RULES.MAX_LOSS_PCT}, bakiye <100 USDT ise kill switch.
 Aktif kalıcı talimatlar: ${ins.length ? ins.map((i) => `#${i.id} ${i.text}`).join(' | ') : 'yok'}
 Sohbette işlem kartı ÜRETME; kullanıcı kripto işlem isterse "tara", hisse işlemi isterse "hisse tara" yazmasını veya ekran görüntüsü atmasını öner. Zarardaki pozisyona ekleme veya SL genişletme isterse kibarca ama net reddet.
 
