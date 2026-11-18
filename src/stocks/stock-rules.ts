@@ -1,4 +1,4 @@
-import { EffectiveLimits } from '../trading/rules';
+import { EffectiveLimits, RULES } from '../trading/rules';
 import { mentionsMartingale } from '../trading/validation';
 import { esc } from '../trading/render';
 
@@ -134,7 +134,7 @@ export function validateStockDecision(raw: StockDecision, ctx: StockValidationCt
   if (rr < STOCK_RULES.MIN_RR) return reject(`Risk/ödül 1:${rr.toFixed(2)} — en az 1:${STOCK_RULES.MIN_RR} gerekli.`);
 
   const adjustments: string[] = [];
-  const maxLossPct = Math.min(STOCK_RULES.MAX_LOSS_PCT, ctx.limits.maxLossPct);
+  const maxLossPct = stockMaxLossPct(ctx.limits.maxLossPct);
   const maxLoss = (ctx.budget * maxLossPct) / 100;
   let position = ctx.budget;
   if ((position * slPct) / 100 > maxLoss) {
@@ -236,4 +236,12 @@ export function renderStockKill(budget: number): string {
     'Sermayeyi korumak için yeni hisse kartı VERMİYORUM. Mola ver, işlemlerini gözden geçir.',
     `Bütçe tekrar ≥${STOCK_RULES.KILL_SWITCH_THRESHOLD}$ olursa /hisse_bakiye ile güncelle, /hisse_reset ile aç.`,
   ].join('\n');
+}
+
+/**
+ * Hisse modülünün kendi kayıp sınırı (%5) kripto ayarından bağımsızdır;
+ * yalnızca kullanıcı talimatla daha sıkı bir sınır koyduysa o uygulanır.
+ */
+export function stockMaxLossPct(limitPct: number): number {
+  return limitPct < RULES.MAX_LOSS_PCT ? Math.min(STOCK_RULES.MAX_LOSS_PCT, limitPct) : STOCK_RULES.MAX_LOSS_PCT;
 }

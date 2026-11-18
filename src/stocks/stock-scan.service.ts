@@ -14,6 +14,7 @@ import {
   renderStockNoTrade,
   stockKillActive,
   validateStockDecision,
+  stockMaxLossPct,
 } from './stock-rules';
 
 export interface StockScanRequest {
@@ -64,7 +65,7 @@ export class StockScanService {
   }
 
   private systemPrompt(budget: number, limits: EffectiveLimits, instructions: string[]): string {
-    const maxLossPct = Math.min(STOCK_RULES.MAX_LOSS_PCT, limits.maxLossPct);
+    const maxLossPct = stockMaxLossPct(limits.maxLossPct);
     return `Sen "Trading Beyni"nin NASDAQ hisse modülüsün: NASDAQ-100 hisselerinde kısa vadeli (swing, birkaç gün–birkaç hafta) disiplinli bir işlem analisti. Sadece ÖNERİ verirsin, emir göndermezsin.
 Kullanıcının işlem başı hisse bütçesi: ${budget.toFixed(0)} USD (kaldıraçsız, spot alım).
 
