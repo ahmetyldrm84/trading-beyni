@@ -1,3 +1,4 @@
+import { RULES } from './rules';
 import { TradeCard } from './validation';
 
 export const esc = (s: unknown) =>
@@ -72,9 +73,9 @@ export function renderKillSwitch(balance: number): string {
   return [
     `🛑 <b>KILL SWITCH AKTİF</b>`,
     '',
-    `Takip edilen bakiye: <b>${balance.toFixed(2)} USDT</b> (eşik: 100 USDT).`,
-    `Kural net: bakiye 100 USDT’nin altına düştüğü için yeni işlem kartı VERMİYORUM. Bu seni korumak için.`,
+    `Takip edilen bakiye: <b>${balance.toFixed(2)} USDT</b> (eşik: ${RULES.KILL_SWITCH_THRESHOLD} USDT).`,
+    `Kural net: bakiye ${RULES.KILL_SWITCH_THRESHOLD} USDT’nin altına düştüğü için yeni işlem kartı VERMİYORUM. Bu seni korumak için.`,
     '',
-    `Mola ver, günlüğüne bak, hataları analiz et. Bakiye tekrar ≥100 USDT olursa /bakiye ile güncelle ve /killswitch_reset ile sistemi aç.`,
+    `Mola ver, günlüğüne bak, hataları analiz et. Bakiye tekrar ≥${RULES.KILL_SWITCH_THRESHOLD} USDT olursa /bakiye ile güncelle ve /killswitch_reset ile sistemi aç.`,
   ].join('\n');
 }

@@ -4,10 +4,13 @@ const otoMinGuven = Math.min(10, Math.max(6, Number(process.env.OTO_MIN_GUVEN) |
 // İşlem başına stop'taki azami kayıp (bakiyenin yüzdesi). AZAMI_KAYIP_YUZDE ile ayarlanır: 0,5-10, varsayılan 3.
 const azamiKayip = Math.min(10, Math.max(0.5, Number(process.env.AZAMI_KAYIP_YUZDE) || 3));
 
+// Kill switch eşiği (USDT): bakiye bunun altına inerse yeni kart verilmez. KILL_SWITCH ile ayarlanır, varsayılan 700.
+const killEsik = Math.max(1, Number(process.env.KILL_SWITCH) || 700);
+
 // IMMUTABLE RULES — user instructions can only TIGHTEN these, never loosen.
 export const RULES = {
   DEFAULT_BALANCE: 1000,
-  KILL_SWITCH_THRESHOLD: 100,
+  KILL_SWITCH_THRESHOLD: killEsik,
   MIN_LEVERAGE: 1,
   MAX_LEVERAGE: 10,
   MAX_MARGIN_PCT: 50, // % of balance
