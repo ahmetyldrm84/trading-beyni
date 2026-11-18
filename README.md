@@ -10,7 +10,7 @@ Binance USDⓈ-M Futures için işlem kartı verir. Karar modeli Claude Fable 5.
 - Her zaman ISOLATED marj, kaldıraç 1x–10x.
 - Margin ≤ bakiyenin %50'si, stop'ta kayıp ≤ bakiyenin %3'ü (`AZAMI_KAYIP_YUZDE` ile ayarlanır, en fazla %10).
 - Martingale / zarardaki pozisyona ekleme yasak.
-- Bakiye 100 USDT altına inerse KILL SWITCH: yeni kart yok.
+- Bakiye 700 USDT altına inerse KILL SWITCH: yeni kart yok (`KILL_SWITCH` ile ayarlanır).
 - Emin değilse "Şu an işlem yok" der.
 
 ## İşlem defteri ve takip
@@ -54,6 +54,7 @@ Bot, deponun **Actions** sekmesindeki "Trading Beyni" iş akışının içinde k
 | `GECE_YASAGI` | `00:30-08:00` | Bu saatlerde (TR) otomatik tarama yok. Kapatmak için `kapali` |
 | `BEKLE_BILDIRIMI` | `acik` | Fırsat yokken tek satır "bekle" mesajı. Susturmak için `kapali` |
 | `OTO_MIN_GUVEN` | `6` | Otomatik kart eşiği (6-10) |
+| `KILL_SWITCH` | `700` | Bakiye bu tutarın (USDT) altına inerse yeni kart verilmez |
 | `AZAMI_KAYIP_YUZDE` | `3` | İşlem başına stop'taki azami kayıp, bakiyenin yüzdesi (0,5-10) |
 | `TARAMA_COIN_SAYISI` | `50` | Hacme göre ilk kaç coin taranır (20-200). Tek seferlik için bota `tara 100` yaz |
 | `ON_ELEME` | `acik` | Otomatik taramada önce ücretsiz kural kontrolü; aday yoksa model çağrılmaz. Her taramada modeli çağırmak için `kapali` |
