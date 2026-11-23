@@ -80,6 +80,23 @@ export interface position {
   closed_at: Date | null;
   created_at: Date;
 }
+export interface card_result {
+  id: number;
+  signal_id: number | null;
+  origin: string | null;
+  symbol: string;
+  direction: string;
+  entry: number;
+  stop_loss: number;
+  take_profit: number;
+  rr: number | null;
+  status: string; // OPEN | TP | SL | EXPIRED | UNKNOWN
+  exit: number | null;
+  r: number | null;
+  resolved_at: Date | null;
+  checked_at: Date | null;
+  created_at: Date;
+}
 export interface processed_update {
   update_id: bigint;
   created_at: Date;
@@ -185,6 +202,27 @@ const TABLES: Record<string, TableDef> = {
       created_at: { kind: 'date' },
     },
     indexes: [['status', 'created_at']],
+  },
+  card_result: {
+    pk: 'id',
+    cols: {
+      id: { kind: 'int' },
+      signal_id: { kind: 'int' },
+      origin: { kind: 'text' },
+      symbol: { kind: 'text' },
+      direction: { kind: 'text' },
+      entry: { kind: 'real' },
+      stop_loss: { kind: 'real' },
+      take_profit: { kind: 'real' },
+      rr: { kind: 'real' },
+      status: { kind: 'text', def: "'OPEN'" },
+      exit: { kind: 'real' },
+      r: { kind: 'real' },
+      resolved_at: { kind: 'date' },
+      checked_at: { kind: 'date' },
+      created_at: { kind: 'date' },
+    },
+    indexes: [['status', 'created_at'], ['signal_id']],
   },
   processed_update: {
     pk: 'update_id',
@@ -354,6 +392,7 @@ export class PrismaService implements OnModuleDestroy {
   readonly sent_signal: Table<sent_signal>;
   readonly scan_log: Table<scan_log>;
   readonly position: Table<position>;
+  readonly card_result: Table<card_result>;
   readonly processed_update: Table<processed_update>;
 
   constructor() {
@@ -377,6 +416,7 @@ export class PrismaService implements OnModuleDestroy {
     this.sent_signal = new Table<sent_signal>(this.db, 'sent_signal', TABLES.sent_signal);
     this.scan_log = new Table<scan_log>(this.db, 'scan_log', TABLES.scan_log);
     this.position = new Table<position>(this.db, 'position', TABLES.position);
+    this.card_result = new Table<card_result>(this.db, 'card_result', TABLES.card_result);
     this.processed_update = new Table<processed_update>(this.db, 'processed_update', TABLES.processed_update);
     this.logger.log(`Veritabanı: ${file}`);
   }
