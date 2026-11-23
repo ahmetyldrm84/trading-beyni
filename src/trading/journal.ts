@@ -187,3 +187,42 @@ export function emergency(
   if (m15 >= cfg.move15 * k) return { kind: 'SERT', text: `son 15 dakikada aleyhine %${m15.toFixed(2)} sert hareket` };
   return null;
 }
+
+// ---------- Kart sonucu takibi ----------
+export interface Candle {
+  t: number;
+  h: number;
+  l: number;
+  c: number;
+}
+export interface CardLevels {
+  direction: string;
+  entry: number;
+  stopLoss: number;
+  takeProfit: number;
+}
+export type CardOutcome = { status: 'TP' | 'SL'; exit: number; r: number; at: number } | null;
+
+/**
+ * Kartın verildiği andan sonraki mumlarda önce stop mu hedef mi geldi?
+ * Aynı mumda ikisi de görülürse temkinli taraf seçilir: SL.
+ */
+export function resolveCard(card: CardLevels, candles: Candle[]): CardOutcome {
+  const long = card.direction !== 'SHORT';
+  const risk = Math.abs(card.entry - card.stopLoss);
+  if (!risk) return null;
+  for (const k of candles) {
+    const sl = long ? k.l <= card.stopLoss : k.h >= card.stopLoss;
+    const tp = long ? k.h >= card.takeProfit : k.l <= card.takeProfit;
+    if (sl) return { status: 'SL', exit: card.stopLoss, r: -1, at: k.t };
+    if (tp) return { status: 'TP', exit: card.takeProfit, r: Math.round((Math.abs(card.takeProfit - card.entry) / risk) * 100) / 100, at: k.t };
+  }
+  return null;
+}
+
+/** Sonuçlanmamış kartın o anki R değeri. */
+export function openR(card: CardLevels, price: number): number {
+  const risk = Math.abs(card.entry - card.stopLoss);
+  if (!risk) return 0;
+  return Math.round((((price - card.entry) * (card.direction === 'SHORT' ? -1 : 1)) / risk) * 100) / 100;
+}

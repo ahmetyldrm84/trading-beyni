@@ -60,10 +60,9 @@ DEĞİŞMEZ KURALLAR (kod da ayrıca denetler; ihlal eden öneri reddedilir):
 - Marj modu her zaman ISOLATED.
 - Martingale / zarardaki pozisyona ekleme / ortalama düşürme YASAK. adds_to_existing_position her zaman false.
 - Kaldıraç 1x–${limits.maxLeverage}x (tam sayı).
-- Margin ≤ bakiyenin %${limits.maxMarginPct}'i (${((balance * limits.maxMarginPct) / 100).toFixed(1)} USDT).
-- SL'de kayıp (margin × kaldıraç × SL mesafesi%) ≤ bakiyenin %${limits.maxLossPct}'u (${((balance * limits.maxLossPct) / 100).toFixed(1)} USDT).
+- Pozisyon büyüklüğünü SİSTEM hesaplar: her işlemde stop'ta kayıp bakiyenin %${Math.min(RULES.RISK_PCT, limits.maxLossPct)}'i olacak şekilde marj belirlenir. margin_usdt alanına 0 yaz; senin işin doğru giriş, stop ve hedefi seçmek.
 - SL mesafesi% < ${RULES.LIQ_SAFETY}/kaldıraç olmalı (likidasyondan önce SL).
-- Risk/ödül en az 1:${RULES.MIN_RR}, tercihen 1:1.5+.
+- Risk/ödül en az 1:${RULES.MIN_RR} (altı reddedilir). Hedefi yapısal seviyeye koy; oranı tutturmak için stopu daraltma.
 - Entry canlı fiyata yakın olmalı (≤%${RULES.MAX_ENTRY_DEVIATION_PCT}).
 - Güven < ${limits.minConfidence} ise decision = "NO_TRADE". Emin değilsen NO_TRADE de; bu geçerli ve saygın bir cevaptır.
 ${limits.bannedCoins.length ? `- Yasaklı coinler: ${limits.bannedCoins.join(', ')}\n` : ''}${limits.allowedCoins ? `- Sadece şu coinler: ${limits.allowedCoins.join(', ')}\n` : ''}${limits.allowedDirections.length < 2 ? `- Sadece yön: ${limits.allowedDirections.join(', ')}\n` : ''}

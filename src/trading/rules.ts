@@ -7,6 +7,16 @@ const azamiKayip = Math.min(10, Math.max(0.5, Number(process.env.AZAMI_KAYIP_YUZ
 // Kill switch eşiği (USDT): bakiye bunun altına inerse yeni kart verilmez. KILL_SWITCH ile ayarlanır, varsayılan 700.
 const killEsik = Math.max(1, Number(process.env.KILL_SWITCH) || 700);
 
+const sayi = (ad: string, varsayilan: number, min: number, max: number): number => {
+  const v = process.env[ad];
+  const n = v === undefined || v === '' ? varsayilan : Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : varsayilan;
+};
+// İşlem başına SABİT risk (bakiyenin yüzdesi): marjı model değil sistem hesaplar. ISLEM_RISK_YUZDE, varsayılan 2.
+const islemRisk = Math.min(azamiKayip, sayi('ISLEM_RISK_YUZDE', 2, 0.25, 10));
+// En düşük ödül/risk oranı. MIN_ODUL_RISK, varsayılan 1,5.
+const minRR = sayi('MIN_ODUL_RISK', 1.5, 1, 5);
+
 // IMMUTABLE RULES — user instructions can only TIGHTEN these, never loosen.
 export const RULES = {
   DEFAULT_BALANCE: 1000,
@@ -15,9 +25,10 @@ export const RULES = {
   MAX_LEVERAGE: 10,
   MAX_MARGIN_PCT: 50, // % of balance
   MAX_LOSS_PCT: azamiKayip, // max loss at SL as % of balance
+  RISK_PCT: islemRisk, // fixed risk per trade as % of balance (margin is derived from it)
   MIN_CONFIDENCE: 6, // below => "Şu an işlem yok"
   AUTO_CARD_MIN_CONFIDENCE: otoMinGuven, // proactive cards from automatic scan
-  MIN_RR: 1.0, // TP distance / SL distance
+  MIN_RR: minRR, // TP distance / SL distance
   MIN_MARGIN_USDT: 5,
   MAX_ENTRY_DEVIATION_PCT: 3, // entry vs live price
   LIQ_SAFETY: 0.8, // SL distance % must be < LIQ_SAFETY / leverage (isolated liq buffer)
@@ -91,4 +102,12 @@ export function computeLimits(list: UserConstraints[]): EffectiveLimits {
     }
   }
   return l;
+}
+
+/**
+ * Ödül/risk oranının hâlâ en az `minRR` kaldığı EN KÖTÜ giriş fiyatı.
+ * LONG için bundan yukarıda, SHORT için bundan aşağıda girilmez.
+ */
+export function entryLimit(sl: number, tp: number, minRR: number = RULES.MIN_RR): number {
+  return (tp + minRR * sl) / (1 + minRR);
 }

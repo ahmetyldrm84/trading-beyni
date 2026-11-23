@@ -1,4 +1,4 @@
-import { EffectiveLimits, RULES, normalizeCoin } from './rules';
+import { entryLimit, EffectiveLimits, RULES, normalizeCoin } from './rules';
 
 export interface LlmDecision {
   decision?: string;
@@ -34,6 +34,8 @@ export interface TradeCard {
   lossPctMargin: number;
   lossPctBalance: number;
   rr: number;
+  /** Ödül/riskin hâlâ asgariyi sağladığı en kötü giriş fiyatı. */
+  entryLimit?: number;
   adjustments: string[];
   exchange: 'BINANCE';
   exchangeSymbol: string; // e.g. SOLUSDT
@@ -172,19 +174,15 @@ export function validateDecision(raw: LlmDecision, ctx: ValidationContext): Vali
     adjustments.push(`Kaldıraç ${lev}x → ${safeLev}x (SL likidasyondan önce tetiklensin)`);
     lev = safeLev;
   }
-  // margin clamp
+  // SABİT RİSK: marjı model seçmez. Stop'ta kayıp = bakiyenin %RISK_PCT'i olacak şekilde hesaplanır.
   const maxMargin = (ctx.balance * L.maxMarginPct) / 100;
-  if (!isNum(margin)) margin = maxMargin * 0.25;
-  if (margin > maxMargin) {
-    adjustments.push(`Margin ${margin.toFixed(1)} → ${maxMargin.toFixed(1)} USDT (max %${L.maxMarginPct} bakiye)`);
-    margin = maxMargin;
-  }
-  // max loss per trade
   const maxLoss = (ctx.balance * L.maxLossPct) / 100;
-  if (margin * lev * slPct > maxLoss) {
-    const m2 = maxLoss / (lev * slPct);
-    adjustments.push(`Margin ${margin.toFixed(1)} → ${m2.toFixed(1)} USDT (SL kaybı ≤ bakiyenin %${L.maxLossPct}'u)`);
-    margin = m2;
+  const riskPct = Math.min(RULES.RISK_PCT, L.maxLossPct);
+  const targetLoss = (ctx.balance * riskPct) / 100;
+  margin = targetLoss / (lev * slPct);
+  if (margin > maxMargin) {
+    adjustments.push(`Margin ${margin.toFixed(1)} → ${maxMargin.toFixed(1)} USDT (max %${L.maxMarginPct} bakiye); bu yüzden risk hedefin (%${riskPct}) altında kaldı`);
+    margin = maxMargin;
   }
   margin = Math.floor(margin * 10) / 10;
   if (margin < RULES.MIN_MARGIN_USDT) return reject(`Kurallara sığdırınca margin ${margin} USDT kalıyor — anlamsız küçük.`);
@@ -225,6 +223,7 @@ export function validateDecision(raw: LlmDecision, ctx: ValidationContext): Vali
       lossPctMargin: +((lossUsdt / margin) * 100).toFixed(1),
       lossPctBalance: +((lossUsdt / ctx.balance) * 100).toFixed(1),
       rr: +rr.toFixed(2),
+      entryLimit: fx && fx.tickSize > 0 ? roundToStep(entryLimit(sl, tp), fx.tickSize, direction === 'LONG' ? 'down' : 'up') : +entryLimit(sl, tp).toPrecision(6),
       adjustments,
       exchange: 'BINANCE',
       exchangeSymbol: fx?.symbol ?? `${symbol}USDT`,

@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import type { position } from '../prisma/prisma.service';
+import type { card_result, position } from '../prisma/prisma.service';
 import { LlmService } from '../llm/llm.service';
 import { MarketService } from '../market/market.service';
-import { CleanPosition, EMERGENCY_DEFAULTS, PricePoint, ShotPosition, cleanPosition, emergency, fmtPnl, levelHit, pnlAt, totals } from './journal';
-import { normalizeCoin } from './rules';
+import { CleanPosition, EMERGENCY_DEFAULTS, PricePoint, ShotPosition, cleanPosition, emergency, fmtPnl, levelHit, openR, pnlAt, resolveCard, totals } from './journal';
+import { RULES, normalizeCoin } from './rules';
 import { esc, fmtPrice } from './render';
 
 const SHOT_PROMPT = `Sana bir ekran görüntüsü veriliyor. Önce türünü belirle:
@@ -94,14 +94,17 @@ export class JournalService {
               opened_at: new Date(),
             },
           });
-          lines.push(`📌 <b>#${r.id} ${esc(r.symbol)} ${r.direction}</b> takibe alındı.${this.detay(r)}${r.stop_loss ? '' : '\n   ⚠️ Stop-loss görünmüyor. Kural: stopsuz işlem yok.'}`);
+          lines.push(`📌 <b>#${r.id} ${esc(r.symbol)} ${r.direction}</b> takibe alındı.${this.detay(r)}${r.stop_loss ? '' : '\n   ⚠️ Stop-loss görünmüyor. Kural: stopsuz işlem yok.'}${await this.girisUyarisi(r)}`);
         }
         continue;
       }
       // Kapanmış işlem: aynı ekran ikinci kez gönderildiyse tekrar yazma
       const since = new Date(Date.now() - 7 * 24 * 3600_000);
-      const kapali = await this.prisma.position.findMany({ where: { status: 'CLOSED', symbol: p.symbol, direction: p.direction, created_at: { gte: since } } });
-      if (!acik.length && p.pnl !== null && kapali.some((k) => k.pnl === p.pnl && (!k.entry || !p.entry || Math.abs(k.entry - p.entry) / p.entry < 0.005))) {
+      // Aynı işlem ikinci kez gönderildiyse tekrar yazma. Coin adı farklı okunmuş olabilir (EVA / EVAA):
+      // aynı coin + aynı kâr/zarar, ya da aynı yön + aynı kâr/zarar + aynı giriş fiyatı tekrar sayılır.
+      const kapali = await this.prisma.position.findMany({ where: { status: 'CLOSED', direction: p.direction, created_at: { gte: since } } });
+      const ayniGiris = (k: position) => !!k.entry && !!p.entry && Math.abs(k.entry - p.entry) / p.entry < 0.0005;
+      if (!acik.length && p.pnl !== null && kapali.some((k) => k.pnl === p.pnl && (k.symbol === p.symbol ? !k.entry || !p.entry || Math.abs(k.entry - p.entry) / p.entry < 0.005 : ayniGiris(k)))) {
         lines.push(`↩️ ${esc(p.symbol)} ${p.direction} ${fmtPnl(p.pnl)} zaten defterde, tekrar eklemedim.`);
         continue;
       }
@@ -137,6 +140,115 @@ export class JournalService {
       }
     }
     return lines;
+  }
+
+  /** Açılan pozisyonun girişi ve büyüklüğü kurallara uyuyor mu? Uymuyorsa uyarı satırı döndürür. */
+  private async girisUyarisi(r: position): Promise<string> {
+    const out: string[] = [];
+    if (r.entry && r.stop_loss && r.take_profit) {
+      const risk = Math.abs(r.entry - r.stop_loss);
+      const rr = risk ? Math.abs(r.take_profit - r.entry) / risk : 0;
+      if (rr && rr < RULES.MIN_RR - 0.005)
+        out.push(`⚠️ Bu girişle ödül/risk 1:${rr.toFixed(2)}; kural en az 1:${RULES.MIN_RR}. Giriş karttaki sınırın dışında kalmış.`);
+    }
+    if (r.entry && r.stop_loss && r.size) {
+      const owner = await this.prisma.owner.findFirst({ where: { id: 1 } });
+      const hedef = owner ? (owner.balance * RULES.RISK_PCT) / 100 : 0;
+      const kayip = (r.size * Math.abs(r.entry - r.stop_loss)) / r.entry;
+      if (hedef && kayip > hedef * 1.25)
+        out.push(`⚠️ Stop'ta kayıp ${kayip.toFixed(1)} USDT; kural işlem başına ${hedef.toFixed(1)} USDT (bakiyenin %${RULES.RISK_PCT}'i). Pozisyon karttakinden büyük.`);
+    }
+    return out.map((x) => `\n   ${x}`).join('');
+  }
+
+  // ===================== Kart sonucu takibi =====================
+  /** Verilen her işlem kartını (alınsın alınmasın) sonucu izlenmek üzere kaydeder. */
+  async registerCard(c: { symbol: string; direction: string; entry: number; stopLoss: number; takeProfit: number; rr?: number }, origin: string, signalId?: number | null, createdAt?: Date) {
+    await this.prisma.card_result.create({
+      data: { signal_id: signalId ?? null, origin, symbol: c.symbol, direction: c.direction, entry: c.entry, stop_loss: c.stopLoss, take_profit: c.takeProfit, rr: c.rr ?? null, status: 'OPEN', created_at: createdAt },
+    });
+  }
+
+  /** Bu özellikten önce verilmiş kartları da takibe alır (bir kez). */
+  private async backfillCards(): Promise<void> {
+    const kartlar = await this.prisma.sent_signal.findMany({ where: { kind: 'TRADE', market: 'CRYPTO' }, orderBy: { created_at: 'asc' } });
+    if (!kartlar.length) return;
+    const var_ = new Set((await this.prisma.card_result.findMany({})).map((r) => r.signal_id));
+    for (const k of kartlar) {
+      if (var_.has(k.id)) continue;
+      const p = (k.payload || {}) as any;
+      if (!(p.entry > 0 && p.stopLoss > 0 && p.takeProfit > 0)) continue;
+      await this.registerCard({ symbol: k.symbol!, direction: k.direction!, entry: p.entry, stopLoss: p.stopLoss, takeProfit: p.takeProfit, rr: p.rr }, k.origin || 'AUTO', k.id, k.created_at);
+    }
+  }
+
+  /**
+   * Sonuçlanmamış kartlarda önce stop mu hedef mi geldi, 15 dakikalık mumlardan bakar (model çağrısı yok).
+   * 72 saatte sonuçlanmayan kart "süresi doldu" sayılır. Aynı mumda ikisi de görülürse SL sayılır.
+   */
+  async trackCards(): Promise<number> {
+    await this.backfillCards();
+    const acik = await this.prisma.card_result.findMany({ where: { status: 'OPEN' }, orderBy: { created_at: 'asc' }, take: 12 });
+    const M15 = 15 * 60_000;
+    const now = Date.now();
+    let n = 0;
+    for (const k of acik) {
+      const bas = Math.max(k.created_at.getTime(), k.checked_at?.getTime() ?? 0);
+      const gerek = Math.min(1500, Math.max(30, Math.ceil((now - bas) / M15) + 3));
+      const r = await this.market.getKlines(k.symbol, undefined, gerek, '15m').catch(() => null);
+      if (!r || !r.klines.length) continue;
+      const kapanmis = r.klines.filter((c) => c.t + M15 <= now); // yalnızca tamamlanmış mumlar
+      if (!kapanmis.length) continue;
+      // Kartın verildiği mum kısmen kart öncesine ait: bir sonraki mumdan başla.
+      const mumlar = kapanmis.filter((c) => c.t >= bas);
+      const levels = { direction: k.direction, entry: k.entry, stopLoss: k.stop_loss, takeProfit: k.take_profit };
+      // Veri kartın tarihine kadar inmiyorsa (çok eski kart) sonucu bilemeyiz.
+      if (!k.checked_at && kapanmis[0].t > k.created_at.getTime() + 2 * M15) {
+        await this.prisma.card_result.update({ where: { id: k.id }, data: { status: 'UNKNOWN', resolved_at: new Date() } });
+        n++;
+        continue;
+      }
+      const sonuc = resolveCard(levels, mumlar);
+      const son = kapanmis[kapanmis.length - 1];
+      if (sonuc) {
+        await this.prisma.card_result.update({ where: { id: k.id }, data: { status: sonuc.status, exit: sonuc.exit, r: sonuc.r, resolved_at: new Date(sonuc.at + M15), checked_at: new Date(son.t + M15) } });
+        n++;
+      } else if (now - k.created_at.getTime() > 72 * 3600_000) {
+        await this.prisma.card_result.update({ where: { id: k.id }, data: { status: 'EXPIRED', exit: son.c, r: openR(levels, son.c), resolved_at: new Date(), checked_at: new Date(son.t + M15) } });
+        n++;
+      } else {
+        await this.prisma.card_result.update({ where: { id: k.id }, data: { checked_at: new Date(son.t + M15) } });
+      }
+    }
+    return n;
+  }
+
+  private async cardStats(): Promise<{ line: string; rows: card_result[] }> {
+    const rows = await this.prisma.card_result.findMany({ orderBy: { created_at: 'desc' } });
+    const tp = rows.filter((r) => r.status === 'TP');
+    const sl = rows.filter((r) => r.status === 'SL');
+    const ex = rows.filter((r) => r.status === 'EXPIRED');
+    const acik = rows.filter((r) => r.status === 'OPEN').length;
+    const biten = tp.length + sl.length + ex.length;
+    if (!biten) return { line: acik ? `🤖 Bot kartları: ${acik} kart izleniyor, henüz sonuçlanan yok.` : '', rows };
+    const topR = [...tp, ...sl, ...ex].reduce((a, r) => a + (r.r ?? 0), 0);
+    const kesin = tp.length + sl.length;
+    return {
+      line: `🤖 <b>Bot kartları</b> (alsan da almasan da): ${biten} sonuçlandı • hedef ${tp.length} • stop ${sl.length}${ex.length ? ` • süresi doldu ${ex.length}` : ''}${kesin ? ` • isabet %${Math.round((tp.length / kesin) * 100)}` : ''} • toplam ${topR >= 0 ? '+' : ''}${topR.toFixed(1)}R${acik ? ` • izlenen ${acik}` : ''}`,
+      rows,
+    };
+  }
+
+  /** /kartlar: son kartların sonucu */
+  async cardsText(): Promise<string> {
+    const { line, rows } = await this.cardStats();
+    if (!rows.length) return '🤖 Henüz izlenen kart yok. Bot bir işlem kartı verdiğinde sonucunu burada görürsün.';
+    const ad: Record<string, string> = { TP: '✅ hedef', SL: '❌ stop', EXPIRED: '⌛ süresi doldu', OPEN: '👀 izleniyor', UNKNOWN: '❔ veri yok' };
+    const out = ['🤖 <b>KART SONUÇLARI</b>', ''];
+    for (const r of rows.slice(0, 15))
+      out.push(`• ${this.gun(r.created_at)} ${esc(r.symbol)} ${r.direction} ${fmtPrice(r.entry)} → ${ad[r.status] || r.status}${r.r !== null && r.status !== 'OPEN' ? ` (${r.r >= 0 ? '+' : ''}${r.r}R)` : ''}`);
+    out.push('', line || '', '', '<i>Sonuç 15 dakikalık mumlardan okunur; kartın giriş fiyatından girildiği varsayılır. 1R = stop\'ta kaybedilecek tutar.</i>');
+    return out.join('\n');
   }
 
   private kapanisSatiri(r: position): string {
@@ -248,6 +360,8 @@ export class JournalService {
     if (t.avgWin !== null || t.avgLoss !== null) out.push(`Ortalama kâr: ${fmtPnl(t.avgWin)} • Ortalama zarar: ${fmtPnl(t.avgLoss)}`);
     if (t.best !== null) out.push(`En iyi: ${fmtPnl(t.best)} • En kötü: ${fmtPnl(t.worst)}`);
     if (t.unknown) out.push(`⚠️ ${t.unknown} işlemin kâr/zararı bilinmiyor, toplama girmedi (/islemler → /kapat ile tamamla).`);
+    const kart = (await this.cardStats()).line;
+    if (kart) out.push('', kart, '<i>Ayrıntı: /kartlar</i>');
     out.push('', '<i>Rakamlar ekran görüntülerinden okunur; komisyon ve funding ekranda görünen kadar dahildir.</i>');
     return out.join('\n');
   }

@@ -1,6 +1,7 @@
 // Testler eski 200 USDT'lik örnek bakiyeyle yazıldı: eşik ve kayıp sınırını o değerlere sabitle.
 process.env.KILL_SWITCH = '100';
 process.env.AZAMI_KAYIP_YUZDE = '10';
+process.env.MIN_ODUL_RISK = '1';
 import { validateDecision, mentionsMartingale, roundToStep } from './validation';
 import { computeLimits } from './rules';
 
