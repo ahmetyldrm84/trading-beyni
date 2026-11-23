@@ -1,0 +1,24 @@
+name: Rapor
+
+# Elle çalıştırılır: işlem defterini, kartları ve tarama kayıtlarını dosya olarak bot sahibinin Telegram'ına gönderir.
+# Botu durdurmaz, hafızayı değiştirmez. Veri kayıtlara yazılmaz.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rapor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      DURUM_SIFRESI: ${{ secrets.DURUM_SIFRESI }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Raporu gönder
+        run: node --no-warnings scripts/rapor.js
