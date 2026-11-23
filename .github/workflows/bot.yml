@@ -28,6 +28,8 @@ jobs:
       GECE_YASAGI: ${{ vars.GECE_YASAGI }}
       BEKLE_BILDIRIMI: ${{ vars.BEKLE_BILDIRIMI }}
       OTO_MIN_GUVEN: ${{ vars.OTO_MIN_GUVEN }}
+      ISLEM_RISK_YUZDE: ${{ vars.ISLEM_RISK_YUZDE }}
+      MIN_ODUL_RISK: ${{ vars.MIN_ODUL_RISK }}
       KILL_SWITCH: ${{ vars.KILL_SWITCH }}
       AZAMI_KAYIP_YUZDE: ${{ vars.AZAMI_KAYIP_YUZDE }}
       TARAMA_COIN_SAYISI: ${{ vars.TARAMA_COIN_SAYISI }}
