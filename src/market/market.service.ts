@@ -48,6 +48,11 @@ type Source = 'Binance Futures' | 'Gate.io Futures' | 'Bybit Linear' | 'OKX Swap
 const ORDER: Source[] = ['Binance Futures', 'Gate.io Futures', 'Bybit Linear', 'OKX Swap', 'CoinGecko'];
 const KLINE_SOURCES: Source[] = ['Binance Futures', 'Gate.io Futures', 'Bybit Linear', 'OKX Swap'];
 const CACHE_MS = 60_000;
+export type KlineInterval = '15m' | '1h';
+const KLINE_IV: Record<KlineInterval, { binance: string; gate: string; bybit: string; okx: string }> = {
+  '15m': { binance: '15m', gate: '15m', bybit: '15', okx: '15m' },
+  '1h': { binance: '1h', gate: '1h', bybit: '60', okx: '1H' },
+};
 /** Taranan coin sayısı (hacme göre ilk N). TARAMA_COIN_SAYISI ile ayarlanır: 20-200, varsayılan 50. Elle "tara 100" yazınca o tarama için ayrı sayı kullanılır. */
 export const clampCoinCount = (x: number): number => Math.min(200, Math.max(20, Math.round(x)));
 export const SCAN_COIN_COUNT = clampCoinCount(Number(process.env.TARAMA_COIN_SAYISI) || 50);
@@ -280,21 +285,22 @@ export class MarketService {
   }
 
   // ---------- Klines (1h) ----------
-  private async klinesFrom(src: Source, sym: string, limit: number): Promise<Kline[]> {
+  private async klinesFrom(src: Source, sym: string, limit: number, iv: KlineInterval = '1h'): Promise<Kline[]> {
+    const I = KLINE_IV[iv];
     switch (src) {
       case 'Binance Futures': {
-        const d = await binanceJson(`/fapi/v1/klines?symbol=${sym}USDT&interval=1h&limit=${limit}`);
+        const d = await binanceJson(`/fapi/v1/klines?symbol=${sym}USDT&interval=${I.binance}&limit=${limit}`);
         return (d as any[]).map((k) => ({ t: k[0], o: f(k[1]), h: f(k[2]), l: f(k[3]), c: f(k[4]) }));
       }
       case 'Gate.io Futures': {
         const d = await getJson(
-          `https://api.gateio.ws/api/v4/futures/usdt/candlesticks?contract=${sym}_USDT&interval=1h&limit=${limit}`,
+          `https://api.gateio.ws/api/v4/futures/usdt/candlesticks?contract=${sym}_USDT&interval=${I.gate}&limit=${limit}`,
         );
         return (d as any[]).map((k) => ({ t: k.t * 1000, o: f(k.o), h: f(k.h), l: f(k.l), c: f(k.c) }));
       }
       case 'Bybit Linear': {
         const d = await getJson(
-          `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}USDT&interval=60&limit=${limit}`,
+          `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}USDT&interval=${I.bybit}&limit=${Math.min(limit, 1000)}`,
         );
         return (d.result.list as any[])
           .map((k) => ({ t: +k[0], o: f(k[1]), h: f(k[2]), l: f(k[3]), c: f(k[4]) }))
@@ -302,7 +308,7 @@ export class MarketService {
       }
       case 'OKX Swap': {
         const d = await getJson(
-          `https://www.okx.com/api/v5/market/candles?instId=${sym}-USDT-SWAP&bar=1H&limit=${Math.min(limit, 300)}`,
+          `https://www.okx.com/api/v5/market/candles?instId=${sym}-USDT-SWAP&bar=${I.okx}&limit=${Math.min(limit, 300)}`,
         );
         return (d.data as any[])
           .map((k) => ({ t: +k[0], o: f(k[1]), h: f(k[2]), l: f(k[3]), c: f(k[4]) }))
@@ -313,12 +319,12 @@ export class MarketService {
     }
   }
 
-  async getKlines(sym: string, preferred?: string, limit = 100): Promise<{ source: string; klines: Kline[] } | null> {
-    return this.cached(`kl:${sym}:${limit}`, async () => {
+  async getKlines(sym: string, preferred?: string, limit = 100, iv: KlineInterval = '1h'): Promise<{ source: string; klines: Kline[] } | null> {
+    return this.cached(`kl:${sym}:${limit}:${iv}`, async () => {
       const order = [...KLINE_SOURCES].sort((a, b) => (a === preferred ? -1 : b === preferred ? 1 : 0));
       for (const src of order) {
         try {
-          const k = await this.klinesFrom(src, sym, limit);
+          const k = await this.klinesFrom(src, sym, limit, iv);
           if (k.length >= 20) return { source: src, klines: k };
         } catch {
           /* try next */
