@@ -155,6 +155,8 @@ export class BotService {
         case 'pnl':
         case 'ozet':
           return this.reply(chatId, await this.journal.pnlText(), false);
+        case 'kartlar':
+          return this.reply(chatId, await this.journal.cardsText(), false);
         case 'kapat':
           return this.reply(chatId, await this.journal.closeManual(arg), false);
         case 'islem_sil':
@@ -282,7 +284,7 @@ export class BotService {
 
   private async recordTrade(res: ScanResult, origin: 'MANUAL' | 'AUTO') {
     const c = res.card!;
-    await this.prisma.sent_signal.create({
+    const sig = await this.prisma.sent_signal.create({
       data: {
         kind: 'TRADE',
         origin,
@@ -293,6 +295,8 @@ export class BotService {
         payload: c as unknown as Prisma.InputJsonValue,
       },
     });
+    // Kartın sonucu (önce stop mu hedef mi) alınsın alınmasın izlenir.
+    await this.journal.registerCard(c, origin, sig.id).catch(() => undefined);
   }
 
   // ===================== Balance / kill switch =====================
@@ -476,6 +480,11 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
   }
 
   private sonModelTaramasi = Date.now();
+
+  /** Kart sonucu takibi (model çağrısı yok). */
+  async trackCards(): Promise<number> {
+    return this.journal.trackCards();
+  }
 
   // ===================== Auto scan (cron) =====================
   async autoScan(opts: AutoScanOptions = {}) {
@@ -736,6 +745,7 @@ instruction sadece intent=instruction ise dolu olsun, yoksa null. constraints'te
       '• 🖼 Grafik ekran görüntüsü gönder → canlı veriyle birlikte analiz',
       '• 🖼 Borsadaki pozisyon / kapanan işlem ekran görüntüsü → işlem defterine eklenir, takibe alınır',
       '• /islemler → açık pozisyonlar ve son kapananlar • /karzarar → toplam kâr/zarar',
+      '• /kartlar → botun verdiği kartların sonucu (aldığın ve almadığın hepsi)',
       '• /kapat 3 12.5 → işlemi elle kapat (sayı = kâr/zarar) • /islem_sil 3 → kaydı sil',
       '• /bakiye 185 veya "bakiyem 185" → bakiyeyi güncelle',
       '• /durum → bakiye, kill switch, limitler, son tarama',
