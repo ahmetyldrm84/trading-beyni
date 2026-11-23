@@ -87,10 +87,12 @@ function ozet(dbFile) {
     }
     h.update(json(db.prepare('SELECT * FROM owner').all()));
     h.update(json(db.prepare('SELECT id, active FROM instruction').all()));
-    try {
-      h.update(json(db.prepare('SELECT * FROM position').all()));
-    } catch {
-      /* tablo yok */
+    for (const t of ['position', 'card_result']) {
+      try {
+        h.update(json(db.prepare(`SELECT * FROM "${t}"`).all()));
+      } catch {
+        /* tablo yok */
+      }
     }
     return h.digest('hex');
   } finally {

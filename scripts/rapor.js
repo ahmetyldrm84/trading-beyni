@@ -45,6 +45,7 @@ async function main() {
     talimatlar: all('SELECT * FROM instruction').map(gizle),
     islemler: all('SELECT * FROM position ORDER BY id').map(gizle),
     kartlar: all('SELECT * FROM sent_signal ORDER BY created_at').map(gizle),
+    kart_sonuclari: all('SELECT * FROM card_result ORDER BY created_at'),
     taramalar: all('SELECT * FROM scan_log ORDER BY created_at DESC LIMIT 1500').map((r) => ({
       ...r,
       summary: r.summary ? String(r.summary).slice(0, 300) : r.summary,
