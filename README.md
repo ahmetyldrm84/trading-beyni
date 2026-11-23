@@ -8,7 +8,8 @@ Binance USDⓈ-M Futures için işlem kartı verir. Karar modeli Claude Fable 5.
 ## Değişmez kurallar (kodda zorunlu, talimatla gevşetilemez)
 - Her işlemde stop-loss + take-profit. SL asla genişletilmez.
 - Her zaman ISOLATED marj, kaldıraç 1x–10x.
-- Margin ≤ bakiyenin %50'si, stop'ta kayıp ≤ bakiyenin %3'ü (`AZAMI_KAYIP_YUZDE` ile ayarlanır, en fazla %10).
+- **Sabit risk:** her işlemde stop'taki kayıp bakiyenin %2'si olacak şekilde marjı bot hesaplar (`ISLEM_RISK_YUZDE`). Marj en fazla bakiyenin %50'si, kayıp tavanı %3 (`AZAMI_KAYIP_YUZDE`).
+- **Ödül/risk en az 1:1,5** (`MIN_ODUL_RISK`). Kartta "giriş sınırı" yazar: o fiyattan kötü girilirse oran 1,5'in altına iner.
 - Martingale / zarardaki pozisyona ekleme yasak.
 - Bakiye 700 USDT altına inerse KILL SWITCH: yeni kart yok (`KILL_SWITCH` ile ayarlanır).
 - Emin değilse "Şu an işlem yok" der.
@@ -24,7 +25,8 @@ Borsadaki (Binance, Gate.io) **pozisyon ya da kapanan işlem ekran görüntüsü
 | Komut | Ne yapar |
 |---|---|
 | `/islemler` | Açık pozisyonlar (anlık kâr/zararla), son kapananlar, toplam |
-| `/karzarar` | Toplam, bugün, son 7 gün, isabet oranı, ortalama kâr ve zarar |
+| `/karzarar` | Toplam, bugün, son 7 gün, isabet oranı, ortalama kâr ve zarar; botun kendi kartlarının isabeti |
+| `/kartlar` | Botun verdiği her kartın sonucu (aldığın ve almadığın hepsi): önce hedef mi stop mu geldi |
 | `/kapat 3 12.5` ya da `/kapat BTC -4.2` | İşlemi elle kapatır (sayı = kâr/zarar, USDT) |
 | `/islem_sil 3` | Yanlış okunan kaydı siler |
 
@@ -54,6 +56,8 @@ Bot, deponun **Actions** sekmesindeki "Trading Beyni" iş akışının içinde k
 | `GECE_YASAGI` | `00:30-08:00` | Bu saatlerde (TR) otomatik tarama yok. Kapatmak için `kapali` |
 | `BEKLE_BILDIRIMI` | `acik` | Fırsat yokken tek satır "bekle" mesajı. Susturmak için `kapali` |
 | `OTO_MIN_GUVEN` | `6` | Otomatik kart eşiği (6-10) |
+| `ISLEM_RISK_YUZDE` | `2` | Her işlemde stop'taki kayıp, bakiyenin yüzdesi (marjı bot buna göre hesaplar) |
+| `MIN_ODUL_RISK` | `1.5` | Kartın en düşük ödül/risk oranı |
 | `KILL_SWITCH` | `700` | Bakiye bu tutarın (USDT) altına inerse yeni kart verilmez |
 | `AZAMI_KAYIP_YUZDE` | `3` | İşlem başına stop'taki azami kayıp, bakiyenin yüzdesi (0,5-10) |
 | `TARAMA_COIN_SAYISI` | `50` | Hacme göre ilk kaç coin taranır (20-200). Tek seferlik için bota `tara 100` yaz |
