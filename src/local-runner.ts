@@ -160,6 +160,11 @@ async function main() {
     const n = await bot.trackPositions();
     if (n) log.log(`Pozisyon nöbeti: ${n} uyarı`);
   });
+  // Kart sonucu takibi: 5 dakikada bir, gece dahil. Model çağrısı yok.
+  schedule('Kart takibi', 5, 2, async () => {
+    const n = await bot.trackCards();
+    if (n) log.log(`Kart takibi: ${n} kart sonuçlandı`);
+  });
   if ((process.env.STOCK_AUTO || 'kapali').toLowerCase() === 'acik') {
     schedule('NASDAQ nöbeti', 60, 45, async () => {
       const r = await bot.autoStockScan({});
